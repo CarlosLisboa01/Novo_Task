@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, shrink-to-fit=no">
+    <meta name="theme-color" content="#7c3aed">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="msapplication-TileColor" content="#7c3aed">
+    <meta name="msapplication-config" content="none">
+    <meta name="format-detection" content="telephone=no">
+    <meta name="description" content="Sistema de gerenciamento de tarefas Task Manager Pro, compatível com todos navegadores">
+    <meta name="robots" content="index, follow">
+    <meta name="author" content="TaskPRO">
+    <meta name="apple-touch-fullscreen" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="application-name" content="TaskPRO">
+    <meta name="apple-mobile-web-app-title" content="TaskPRO">
+    <meta name="HandheldFriendly" content="true">
+    
+    <!-- Preload de recursos críticos para melhor desempenho -->
+    <link rel="preload" href="styles.css" as="style">
+    <link rel="preload" href="auth.js" as="script">
+    <link rel="preload" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" as="style">
+    <link rel="preload" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" as="style">
+    
+    <title>TaskPRO - Autenticação</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Supabase -->
+    <script src="https://unpkg.com/@supabase/supabase-js@2.5.0/dist/umd/supabase.js"></script>
+    <script>
+        const supabaseJs = supabase;
+    </script>
+    
+    <!-- Ícone de aplicativo -->
+    <link rel="icon" href="TaskPRO_LOGO.png">
+    <link rel="apple-touch-icon" href="TaskPRO_LOGO.png">
+    
+    <style>
+        /* Estilos específicos para a página de autenticação */
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: var(--bg-color);
+            overflow: hidden;
+            position: relative;
+        }
+        
+        body:before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(135deg, var(--primary-color-light) 0%, var(--primary-color) 100%);
+            opacity: 0.1;
+            z-index: -1;
+        }
+        
+        .auth-container {
+            display: flex;
+            width: 800px;
+            max-width: 90%;
+            height: 500px;
+            max-height: 90vh;
+            background-color: var(--card-bg);
+            border-radius: 16px;
+            box-shadow: 0 12px 24px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+            position: relative;
+        }
+        
+        .auth-sidebar {
+            width: 40%;
+            background-color: var(--primary-color);
+            color: white;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 2rem;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .auth-sidebar:before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: url('img/pattern.svg') repeat;
+            opacity: 0.1;
+        }
+        
+        .auth-sidebar-logo {
+            width: 80px;
+            height: 80px;
+            object-fit: contain;
+            margin-bottom: 1.5rem;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .auth-sidebar h2 {
+            font-size: 1.8rem;
+            margin-bottom: 1rem;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .auth-sidebar p {
+            font-size: 1rem;
+            opacity: 0.9;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .auth-content {
+            width: 60%;
+            padding: 2rem;
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+        }
+        
+        .auth-header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        
+        .auth-header h1 {
+            font-size: 1.8rem;
+            color: var(--title-color);
+            margin-bottom: 0.5rem;
+        }
+        
+        .auth-header p {
+            color: var(--text-color-light);
+            font-size: 0.95rem;
+        }
+        
+        .form-tabs {
+            display: flex;
+            margin-bottom: 1.5rem;
+        }
+        
+        .form-tab {
+            flex: 1;
+            text-align: center;
+            padding: 0.75rem;
+            background: none;
+            border: none;
+            border-bottom: 2px solid var(--border-color);
+            color: var(--text-color-light);
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .form-tab.active {
+            color: var(--primary-color);
+            border-bottom-color: var(--primary-color);
+        }
+        
+        .auth-form {
+            display: none;
+        }
+        
+        .auth-form.active {
+            display: block;
+        }
+        
+        .form-group {
+            margin-bottom: 1.25rem;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            color: var(--text-color);
+        }
+        
+        .form-group input {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background-color: var(--input-bg);
+            color: var(--text-color);
+            font-size: 0.95rem;
+            transition: border-color 0.3s;
+        }
+        
+        .form-group input:focus {
+            border-color: var(--primary-color);
+            outline: none;
+        }
+        
+        .form-group .input-with-icon {
+            position: relative;
+        }
+        
+        .form-group .input-with-icon i {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            left: 1rem;
+            color: var(--text-color-light);
+        }
+        
+        .form-group .input-with-icon input {
+            padding-left: 2.75rem;
+        }
+        
+        .auth-btn {
+            width: 100%;
+            padding: 0.85rem;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            margin-top: 1rem;
+        }
+        
+        .auth-btn:hover {
+            background-color: var(--primary-color-dark);
+        }
+        
+        .auth-footer {
+            text-align: center;
+            margin-top: 1.5rem;
+            color: var(--text-color-light);
+            font-size: 0.9rem;
+        }
+        
+        .auth-footer a {
+            color: var(--primary-color);
+            text-decoration: none;
+            font-weight: 500;
+        }
+        
+        .auth-footer a:hover {
+            text-decoration: underline;
+        }
+        
+        .error-message {
+            color: var(--danger-color);
+            background-color: rgba(255, 76, 81, 0.1);
+            border-radius: 6px;
+            padding: 0.75rem;
+            font-size: 0.9rem;
+            margin-bottom: 1rem;
+            display: none;
+        }
+        
+        .success-message {
+            color: var(--success-color);
+            background-color: rgba(0, 200, 81, 0.1);
+            border-radius: 6px;
+            padding: 0.75rem;
+            font-size: 0.9rem;
+            margin-bottom: 1rem;
+            display: none;
+        }
+        
+        @media (max-width: 768px) {
+            .auth-container {
+                flex-direction: column;
+                height: auto;
+            }
+            
+            .auth-sidebar {
+                width: 100%;
+                padding: 1.5rem;
+            }
+            
+            .auth-content {
+                width: 100%;
+            }
+            
+            .auth-sidebar-logo {
+                width: 60px;
+                height: 60px;
+                margin-bottom: 1rem;
+            }
+            
+            .auth-sidebar h2 {
+                font-size: 1.5rem;
+            }
+            
+            .auth-form {
+                padding-bottom: 1rem;
+            }
+        }
+        
+        /* Estilo para botão de carregamento */
+        .auth-btn.loading {
+            position: relative;
+            color: transparent;
+        }
+        
+        .auth-btn.loading:after {
+            content: '';
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            top: 50%;
+            left: 50%;
+            margin-top: -10px;
+            margin-left: -10px;
+            border-radius: 50%;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-top-color: white;
+            animation: spin 0.8s linear infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="auth-container">
+        <div class="auth-sidebar">
+            <img src="TaskPRO_LOGO.png" alt="TaskPRO Logo" class="auth-sidebar-logo">
+            <h2>TaskPRO</h2>
+            <p>Gerencie suas atividades de forma eficiente, mantenha-se organizado e aumente sua produtividade.</p>
+        </div>
+        
+        <div class="auth-content">
+            <div class="auth-header">
+                <h1>Bem-vindo ao TaskPRO</h1>
+                <p>Por favor, faça login ou crie sua conta para continuar</p>
+            </div>
+            
+            <div class="form-tabs">
+                <button class="form-tab active" id="login-tab">Login</button>
+                <button class="form-tab" id="register-tab">Registrar</button>
+            </div>
+            
+            <div class="error-message" id="error-message"></div>
+            <div class="success-message" id="success-message"></div>
+            
+            <!-- Formulário de Login -->
+            <form class="auth-form active" id="login-form">
+                <div class="form-group">
+                    <label for="login-email">Email</label>
+                    <div class="input-with-icon">
+                        <i class="fas fa-envelope"></i>
+                        <input type="email" id="login-email" placeholder="Seu email" required>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="login-password">Senha</label>
+                    <div class="input-with-icon">
+                        <i class="fas fa-lock"></i>
+                        <input type="password" id="login-password" placeholder="Sua senha" required>
+                    </div>
+                </div>
+                
+                <button type="submit" class="auth-btn" id="login-btn">Entrar</button>
+                
+                <div class="auth-footer">
+                    <p>Não tem conta? <a href="#" id="go-to-register">Registre-se agora</a></p>
+                </div>
+            </form>
+            
+            <!-- Formulário de Registro -->
+            <form class="auth-form" id="register-form">
+                <div class="form-group">
+                    <label for="register-name">Nome Completo</label>
+                    <div class="input-with-icon">
+                        <i class="fas fa-user"></i>
+                        <input type="text" id="register-name" placeholder="Seu nome completo" required>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="register-email">Email</label>
+                    <div class="input-with-icon">
+                        <i class="fas fa-envelope"></i>
+                        <input type="email" id="register-email" placeholder="Seu email" required>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="register-password">Senha</label>
+                    <div class="input-with-icon">
+                        <i class="fas fa-lock"></i>
+                        <input type="password" id="register-password" placeholder="Escolha uma senha segura" required minlength="6">
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="register-password-confirm">Confirmar Senha</label>
+                    <div class="input-with-icon">
+                        <i class="fas fa-lock"></i>
+                        <input type="password" id="register-password-confirm" placeholder="Confirme sua senha" required minlength="6">
+                    </div>
+                </div>
+                
+                <button type="submit" class="auth-btn" id="register-btn">Criar Conta</button>
+                
+                <div class="auth-footer">
+                    <p>Já tem uma conta? <a href="#" id="go-to-login">Faça login</a></p>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Scripts -->
+    <script src="supabase-config.js"></script>
+    <script src="auth.js"></script>
+</body>
+</html> 

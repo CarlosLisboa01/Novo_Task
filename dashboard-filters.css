@@ -1,0 +1,363 @@
+/* Estilos para os filtros do dashboard */
+.filter-controls {
+    margin: 10px 0 20px;
+    padding: 15px;
+    background-color: var(--card-bg, #111827);
+    border-radius: 16px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    animation: fadeIn 0.4s ease-out;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.filter-title {
+    display: flex;
+    align-items: center;
+    font-weight: 600;
+    margin-bottom: 16px;
+    color: var(--text-light, #a3aed0);
+    font-size: 1rem;
+}
+
+.filter-title i {
+    margin-right: 10px;
+    color: #9333ea;
+    font-size: 1.1rem;
+}
+
+.filter-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 18px;
+    position: relative;
+}
+
+/* Estilo de botão para cada filtro */
+.filter-option {
+    position: relative;
+    border-radius: 50px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    overflow: hidden;
+}
+
+.filter-option input[type="checkbox"] {
+    position: absolute;
+    opacity: 0;
+    cursor: pointer;
+    height: 0;
+    width: 0;
+}
+
+.filter-label {
+    display: flex;
+    align-items: center;
+    padding: 8px 16px;
+    border-radius: 50px;
+    background-color: #1e293b;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: #e2e8f0;
+    font-weight: 500;
+    font-size: 0.9rem;
+    transition: all 0.3s ease;
+    white-space: nowrap;
+}
+
+/* Cores específicas para cada status */
+.filter-option[for="filter-pending"] .filter-label i {
+    color: #fbbf24;
+}
+
+.filter-option[for="filter-completed"] .filter-label i {
+    color: #22c55e;
+}
+
+.filter-option[for="filter-late"] .filter-label i {
+    color: #ef4444;
+}
+
+.filter-option[for="filter-finished"] .filter-label i {
+    color: #8b5cf6;
+}
+
+/* Estado selecionado para cada filtro */
+.filter-option[for="filter-pending"] input:checked + .filter-label {
+    background-color: rgba(251, 191, 36, 0.15);
+    border-color: #fbbf24;
+    box-shadow: 0 0 0 1px #fbbf24;
+}
+
+.filter-option[for="filter-completed"] input:checked + .filter-label {
+    background-color: rgba(34, 197, 94, 0.15);
+    border-color: #22c55e;
+    box-shadow: 0 0 0 1px #22c55e;
+}
+
+.filter-option[for="filter-late"] input:checked + .filter-label {
+    background-color: rgba(239, 68, 68, 0.15);
+    border-color: #ef4444;
+    box-shadow: 0 0 0 1px #ef4444;
+}
+
+.filter-option[for="filter-finished"] input:checked + .filter-label {
+    background-color: rgba(139, 92, 246, 0.15);
+    border-color: #8b5cf6;
+    box-shadow: 0 0 0 1px #8b5cf6;
+}
+
+.filter-label i {
+    margin-right: 8px;
+    font-size: 1rem;
+}
+
+/* Efeito hover para os filtros */
+.filter-option:hover .filter-label {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* Botões principais */
+.filter-buttons {
+    display: flex;
+    gap: 12px;
+    margin-top: 12px;
+}
+
+.filter-button {
+    padding: 10px 16px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-size: 0.9rem;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    flex: 1;
+}
+
+.filter-button.select-all {
+    background-color: #7c3aed;
+    color: white;
+}
+
+.filter-button.select-all::before {
+    content: '\f00c';
+    font-family: 'Font Awesome 5 Free';
+    font-weight: 900;
+    margin-right: 8px;
+}
+
+.filter-button.select-all:hover {
+    background-color: #6d28d9;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 10px rgba(124, 58, 237, 0.3);
+}
+
+.filter-button.clear-all {
+    background-color: #ffffff;
+    color: #1e293b;
+}
+
+.filter-button.clear-all::before {
+    content: '\f12d';
+    font-family: 'Font Awesome 5 Free';
+    font-weight: 900;
+    margin-right: 8px;
+}
+
+.filter-button.clear-all:hover {
+    background-color: #f3f4f6;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+}
+
+/* Status do filtro selecionado */
+.filter-status {
+    display: flex;
+    gap: 6px;
+    margin-top: 8px;
+    padding: 8px 0;
+    font-size: 0.85rem;
+    color: #a3aed0;
+}
+
+.filter-status-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    border-radius: 50px;
+    background-color: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.filter-status-item i {
+    font-size: 0.8rem;
+}
+
+/* Animações para entrada e saída dos filtros */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Animação ao selecionar um filtro */
+@keyframes pulse {
+    0% { 
+        transform: scale(1);
+    }
+    50% { 
+        transform: scale(1.05);
+    }
+    100% { 
+        transform: scale(1);
+    }
+}
+
+.filter-option input:checked + .filter-label {
+    animation: pulse 0.3s ease-in-out;
+}
+
+/* Esconder o filtro original do dashboard */
+.status-filter {
+    display: none !important;
+}
+
+/* Filtro em andamento ativo */
+.em-andamento-ativo {
+    background-color: rgba(251, 191, 36, 0.2);
+    padding: 5px 10px;
+    border-radius: 50px;
+    font-size: 0.85rem;
+    display: inline-flex;
+    align-items: center;
+    margin-top: 8px;
+    color: #e2e8f0;
+}
+
+.em-andamento-ativo i {
+    margin-right: 6px;
+    color: #fbbf24;
+}
+
+/* Responsividade */
+@media (max-width: 768px) {
+    .filter-options {
+        flex-direction: row;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 10px;
+    }
+    
+    .filter-buttons {
+        flex-direction: row;
+    }
+}
+
+@media (max-width: 480px) {
+    .filter-options {
+        flex-direction: column;
+        gap: 8px;
+    }
+    
+    .filter-option {
+        width: 100%;
+    }
+    
+    .filter-buttons {
+        flex-direction: column;
+        gap: 8px;
+    }
+    
+    .filter-button {
+        width: 100%;
+    }
+}
+
+/* Animações para interações com filtros */
+.pulse-active {
+    animation: pulse-active-anim 0.5s ease-in-out;
+}
+
+.pulse-inactive {
+    animation: pulse-inactive-anim 0.5s ease-in-out;
+}
+
+.button-active {
+    animation: button-active-anim 0.3s ease-in-out;
+}
+
+.count-updated {
+    animation: count-updated-anim 0.6s ease-in-out;
+}
+
+@keyframes pulse-active-anim {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+    100% { transform: scale(1); }
+}
+
+@keyframes pulse-inactive-anim {
+    0% { transform: scale(1); }
+    50% { transform: scale(0.97); opacity: 0.7; }
+    100% { transform: scale(1); }
+}
+
+@keyframes button-active-anim {
+    0% { transform: scale(1); }
+    50% { transform: scale(0.95); }
+    100% { transform: scale(1); }
+}
+
+@keyframes count-updated-anim {
+    0% { color: inherit; transform: scale(1); }
+    30% { color: #7c3aed; transform: scale(1.2); }
+    100% { color: inherit; transform: scale(1); }
+}
+
+/* Transições para tarefas */
+.task-item {
+    transition: opacity 0.2s ease-in-out, transform 0.3s ease-in-out;
+}
+
+/* Efeitos de hover mais suaves para botões */
+.filter-button::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 5px;
+    height: 5px;
+    background: rgba(255, 255, 255, 0.5);
+    opacity: 0;
+    border-radius: 100%;
+    transform: scale(1, 1) translate(-50%);
+    transform-origin: 50% 50%;
+}
+
+.filter-button:hover::after {
+    animation: ripple 1s ease-out;
+}
+
+@keyframes ripple {
+    0% {
+        transform: scale(0, 0);
+        opacity: 0.5;
+    }
+    20% {
+        transform: scale(25, 25);
+        opacity: 0.3;
+    }
+    100% {
+        opacity: 0;
+        transform: scale(40, 40);
+    }
+} 
