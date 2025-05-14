@@ -261,7 +261,134 @@ function renderTasksBackup() {
         }
     });
     
+    // Renderizar tarefas na tabela, se existir
+    const taskTableBody = document.getElementById('task-table-body');
+    if (taskTableBody) {
+        console.log('Renderizando tarefas na tabela...');
+        
+        // Limpar a tabela
+        taskTableBody.innerHTML = '';
+        
+        // Flatten das tarefas de todas as categorias
+        const allTasks = [];
+        Object.keys(window.tasks).forEach(category => {
+            window.tasks[category].forEach(task => {
+                task.category = category; // Adicionar a categoria à tarefa
+                allTasks.push(task);
+            });
+        });
+        
+        // Ordenar tarefas por data de término
+        allTasks.sort((a, b) => {
+            const dateA = a.endDate ? new Date(a.endDate) : new Date(9999, 11, 31);
+            const dateB = b.endDate ? new Date(b.endDate) : new Date(9999, 11, 31);
+            return dateA - dateB;
+        });
+        
+        // Adicionar cada tarefa à tabela
+        allTasks.forEach(task => {
+            // Verificar se temos a função createTaskRow disponível
+            if (typeof window.createTaskRow === 'function') {
+                const taskRowData = window.createTaskRow(task);
+                taskTableBody.appendChild(taskRowData.row);
+                
+                // Configurar eventos para os botões
+                setupTaskRowEvents(taskRowData, task);
+            } else if (typeof createTaskRow === 'function') {
+                const taskRowData = createTaskRow(task);
+                taskTableBody.appendChild(taskRowData.row);
+                
+                // Configurar eventos para os botões
+                setupTaskRowEvents(taskRowData, task);
+            } else {
+                // Implementação alternativa básica
+                const row = document.createElement('tr');
+                row.className = `task-row status-${task.status || 'pending'}`;
+                row.dataset.taskId = task.id;
+                
+                // Determinar a categoria para exibição
+                const categoryTexts = {
+                    'day': 'Hoje',
+                    'week': 'Esta Semana',
+                    'month': 'Este Mês',
+                    'year': 'Este Ano'
+                };
+                
+                row.innerHTML = `
+                    <td>${categoryTexts[task.category] || task.category}</td>
+                    <td>${task.text || task.title || 'Sem título'}</td>
+                    <td>${formatDate(task.startDate)}</td>
+                    <td>${formatDate(task.endDate)}</td>
+                    <td class="status-cell status-${task.status || 'pending'}">${getStatusText(task.status)}</td>
+                    <td class="actions-cell">
+                        <button class="edit-button" title="Editar"><i class="fas fa-edit"></i></button>
+                        <button class="delete-button" title="Excluir"><i class="fas fa-trash-alt"></i></button>
+                    </td>
+                `;
+                
+                taskTableBody.appendChild(row);
+                
+                // Adicionar eventos para os botões
+                const editButton = row.querySelector('.edit-button');
+                const deleteButton = row.querySelector('.delete-button');
+                
+                if (editButton) {
+                    editButton.addEventListener('click', () => {
+                        console.log('Botão de editar clicado para tarefa:', task.id);
+                        if (typeof window.prepareEditTask === 'function') {
+                            window.prepareEditTask(task);
+                        } else if (typeof prepareEditTask === 'function') {
+                            prepareEditTask(task);
+                        }
+                    });
+                }
+                
+                if (deleteButton) {
+                    deleteButton.addEventListener('click', () => {
+                        console.log('Botão de excluir clicado para tarefa:', task.id);
+                        if (typeof window.deleteTask === 'function') {
+                            window.deleteTask(task.id);
+                        } else if (typeof deleteTask === 'function') {
+                            deleteTask(task.id);
+                        }
+                    });
+                }
+            }
+        });
+    }
+    
     console.log('Renderização de tarefas de backup concluída');
+}
+
+// Função auxiliar para obter texto do status
+function getStatusText(status) {
+    const statusTexts = {
+        'pending': 'Em andamento',
+        'completed': 'Concluído',
+        'finished': 'Finalizado',
+        'late': 'Em atraso'
+    };
+    
+    return statusTexts[status] || statusTexts['pending'];
+}
+
+// Função auxiliar para formatar data
+function formatDate(dateString) {
+    if (!dateString) return 'Data não definida';
+    
+    try {
+        const options = {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        };
+        return new Date(dateString).toLocaleString('pt-BR', options);
+    } catch (error) {
+        console.error('Erro ao formatar data:', error);
+        return dateString;
+    }
 }
 
 // Função de backup para criar elemento de tarefa
@@ -1009,4 +1136,114 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
     }, 500);
-}); 
+});
+
+// Função para adicionar os listeners de eventos às linhas da tabela de tarefas
+function setupTaskRowEvents(taskRow, task) {
+    // Obter referências para os elementos dos botões
+    const { row, statusSelect, editButton, commentsButton, pinButton, deleteButton } = taskRow;
+    
+    // Configurar o botão de editar
+    if (editButton) {
+        editButton.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            console.log('Botão de editar tarefa clicado para tarefa ID:', task.id);
+            
+            // Verificar se a função prepareEditTask existe no contexto global
+            if (typeof window.prepareEditTask === 'function') {
+                window.prepareEditTask(task);
+            } else if (typeof prepareEditTask === 'function') {
+                prepareEditTask(task);
+            } else {
+                console.error('Função para editar tarefa não encontrada');
+            }
+        });
+    }
+    
+    // Configurar o botão de excluir
+    if (deleteButton) {
+        deleteButton.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            console.log('Botão de excluir tarefa clicado para tarefa ID:', task.id);
+            
+            // Verificar se a função deleteTask existe no contexto global
+            if (typeof window.deleteTask === 'function') {
+                window.deleteTask(task.id);
+            } else if (typeof deleteTask === 'function') {
+                deleteTask(task.id);
+            } else {
+                console.error('Função para excluir tarefa não encontrada');
+                
+                // Alternativa: perguntar se o usuário realmente quer excluir a tarefa
+                if (confirm('Tem certeza que deseja excluir esta tarefa?')) {
+                    console.log('Exclusão confirmada para tarefa ID:', task.id);
+                    // Implementar alguma lógica de exclusão aqui
+                }
+            }
+        });
+    }
+    
+    // Configurar o select de status
+    if (statusSelect) {
+        statusSelect.addEventListener('change', function(e) {
+            const newStatus = e.target.value;
+            console.log(`Alterando status da tarefa ${task.id} para ${newStatus}`);
+            
+            // Adicionar classe para destacar a alteração
+            row.classList.add('highlight-status-change');
+            
+            // Remover a classe após um tempo
+            setTimeout(() => {
+                row.classList.remove('highlight-status-change');
+            }, 2000);
+            
+            // Verificar se a função updateTaskStatus existe no contexto global
+            if (typeof window.updateTaskStatus === 'function') {
+                window.updateTaskStatus(task.id, newStatus);
+            } else if (typeof updateTaskStatus === 'function') {
+                updateTaskStatus(task.id, newStatus);
+            } else {
+                console.error('Função para atualizar status da tarefa não encontrada');
+            }
+        });
+    }
+    
+    // Configurar o botão de fixar tarefa
+    if (pinButton) {
+        pinButton.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            if (typeof window.toggleTaskPin === 'function') {
+                window.toggleTaskPin(task.id);
+            } else if (typeof toggleTaskPin === 'function') {
+                toggleTaskPin(task.id);
+            } else {
+                console.error('Função para fixar/desafixar tarefa não encontrada');
+            }
+        });
+    }
+    
+    // Configurar o botão de comentários
+    if (commentsButton) {
+        commentsButton.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            console.log('Botão de comentários clicado para tarefa ID:', task.id);
+            
+            // Implementar a lógica de mostrar/adicionar comentários aqui
+            if (typeof window.showTaskComments === 'function') {
+                window.showTaskComments(task.id);
+            } else if (typeof showTaskComments === 'function') {
+                showTaskComments(task.id);
+            } else {
+                console.error('Função para mostrar comentários não encontrada');
+            }
+        });
+    }
+    
+    return taskRow;
+} 

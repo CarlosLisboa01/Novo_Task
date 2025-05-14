@@ -495,35 +495,61 @@ clearDateRestrictions();
 // Controle do modal
 function openModal() {
     console.log("Abrindo modal...");
+    
+    const taskFormModal = document.getElementById('task-form-modal');
     if (!taskFormModal) {
-        console.error("Modal não encontrado ao tentar abrir!");
+        console.error("Modal não encontrado!");
         return;
     }
-    taskFormModal.style.display = 'flex';
     
-    // Focar no primeiro campo do formulário se existir
-    if (taskInput) {
-    taskInput.focus();
-    }
+    // Restaurar o estilo inicial para animação
+    taskFormModal.style.opacity = '0';
     
+    // Mostrar o modal
+    taskFormModal.style.display = 'block';
+    
+    // Impedir scroll no fundo
     document.body.style.overflow = 'hidden';
+    
+    // Iniciar animação após um microtick para o navegador aplicar o display
+    setTimeout(() => {
+        taskFormModal.style.opacity = '1';
+        taskFormModal.classList.add('show');
+        
+        // Focar no primeiro campo do formulário se existir
+        const taskInput = document.getElementById('task-input');
+        if (taskInput) {
+            taskInput.focus();
+        }
+    }, 10);
+    
+    // Limpar restrições de data
     clearDateRestrictions();
 }
 
 function closeModal() {
     console.log("Fechando modal...");
+    
+    const taskFormModal = document.getElementById('task-form-modal');
     if (!taskFormModal) {
         console.error("Modal não encontrado ao tentar fechar!");
         return;
     }
-    taskFormModal.style.display = 'none';
     
-    // Redefinir o formulário se existir
-    if (taskForm) {
-    taskForm.reset();
-    }
+    // Adicionar classe de animação para fade-out
+    taskFormModal.classList.add('modal-closing');
     
-    document.body.style.overflow = '';
+    // Aguardar a animação terminar antes de esconder
+    setTimeout(() => {
+        taskFormModal.style.display = 'none';
+        taskFormModal.classList.remove('modal-closing');
+        
+        // Redefinir o formulário
+        resetTaskForm();
+        
+        // Restaurar o scroll da página
+        document.body.style.overflow = '';
+    }, 300); // Tempo da animação
 }
 
 // Garantir que o modal comece fechado
@@ -1095,36 +1121,75 @@ function createTaskItem(task) {
 function prepareEditTask(task) {
     console.log('Preparando para editar tarefa:', task);
     
-    // Abrir o modal
-    openModal();
+    // Resetar qualquer formulário existente primeiro
+    resetTaskForm();
     
-    // Preencher o formulário com os dados da tarefa
+    // Obter referências aos elementos do formulário
+    const taskForm = document.getElementById('task-form');
     const taskInput = document.getElementById('task-input');
     const taskCategory = document.getElementById('task-category');
+    const taskDescription = document.getElementById('task-description');
     const taskStartDate = document.getElementById('task-start-date');
     const taskEndDate = document.getElementById('task-end-date');
     
-    if (taskInput) taskInput.value = task.text || task.title || '';
-    if (taskCategory) taskCategory.value = task.category || 'day';
-    if (taskStartDate) taskStartDate.value = task.startDate ? task.startDate.substring(0, 16) : '';
-    if (taskEndDate) taskEndDate.value = task.endDate ? task.endDate.substring(0, 16) : '';
+    // Verificar se todos os elementos necessários existem
+    if (!taskForm || !taskInput || !taskCategory) {
+        console.error('Elementos do formulário de edição não encontrados');
+        showErrorNotification('Não foi possível iniciar a edição da tarefa');
+        return;
+    }
     
-    // Modificar o formulário para atualização em vez de criar nova tarefa
-    const taskForm = document.getElementById('task-form');
+    // Preencher o formulário com os dados da tarefa
+    taskInput.value = task.text || '';
+    taskCategory.value = task.category || 'day';
+    
+    if (taskDescription) {
+        taskDescription.value = task.description || '';
+    }
+    
+    if (taskStartDate && task.startDate) {
+        const startDate = new Date(task.startDate);
+        taskStartDate.value = startDate.toISOString().split('T')[0];
+    }
+    
+    if (taskEndDate && task.endDate) {
+        const endDate = new Date(task.endDate);
+        taskEndDate.value = endDate.toISOString().split('T')[0];
+    }
+    
+    // Selecionar o status correto
+    const statusRadios = document.querySelectorAll('input[name="status"]');
+    if (statusRadios.length > 0) {
+        statusRadios.forEach(radio => {
+            radio.checked = radio.value === task.status;
+        });
+    }
+    
+    // Atualizar título do modal e texto do botão
     const formTitle = document.querySelector('#task-form-modal .modal-title');
     const submitButton = document.querySelector('#task-form .btn-primary');
     
     if (formTitle) formTitle.textContent = 'Editar Tarefa';
-    if (submitButton) submitButton.textContent = 'Atualizar';
+    if (submitButton) submitButton.textContent = 'Salvar Alterações';
     
     // Armazenar ID da tarefa sendo editada para usar no submit
     if (taskForm) {
+        // Guardar o ID da tarefa sendo editada
         taskForm.dataset.editingTaskId = task.id;
         
         // Remover manipulador antigo e adicionar novo
         taskForm.removeEventListener('submit', handleAddTaskEvent);
-        taskForm.addEventListener('submit', function handleEditTaskEvent(e) {
+        
+        // Remover manipulador de edição anterior, se existir
+        if (taskForm._editHandler) {
+            taskForm.removeEventListener('submit', taskForm._editHandler);
+            delete taskForm._editHandler;
+        }
+        
+        // Criar o manipulador para edição
+        function handleEditTaskEvent(e) {
             e.preventDefault();
+            console.log('Formulário de edição enviado');
             
             const taskId = taskForm.dataset.editingTaskId;
             if (!taskId) {
@@ -1135,28 +1200,100 @@ function prepareEditTask(task) {
             // Coletar dados do formulário
             const formData = {
                 text: taskInput.value.trim(),
+                title: taskInput.value.trim(), // Garantir que o título também seja atualizado
                 category: taskCategory.value,
-                startDate: taskStartDate.value,
-                endDate: taskEndDate.value,
                 updatedAt: new Date().toISOString()
             };
+            
+            // Adicionar descrição se o campo existir e tiver valor
+            if (taskDescription && taskDescription.value.trim()) {
+                formData.description = taskDescription.value.trim();
+            }
+            
+            // Adicionar datas se fornecidas
+            if (taskStartDate && taskStartDate.value) {
+                formData.startDate = new Date(taskStartDate.value).toISOString();
+            }
+            
+            if (taskEndDate && taskEndDate.value) {
+                formData.endDate = new Date(taskEndDate.value).toISOString();
+            }
+            
+            // Adicionar status, se selecionado
+            const selectedStatus = document.querySelector('input[name="status"]:checked');
+            if (selectedStatus) {
+                formData.status = selectedStatus.value;
+            }
+            
+            // Validar dados
+            if (!formData.text) {
+                showWarningNotification('O título da tarefa é obrigatório');
+                taskInput.focus();
+                return;
+            }
+            
+            if (formData.startDate && formData.endDate) {
+                if (new Date(formData.endDate) <= new Date(formData.startDate)) {
+                    showWarningNotification('Data de término deve ser posterior à data de início');
+                    return;
+                }
+            }
+            
+            console.log('Atualizando tarefa com ID:', taskId, 'Dados:', formData);
             
             // Atualizar tarefa
             updateExistingTask(taskId, formData);
             
             // Fechar modal
             closeModal();
-            
-            // Remover este manipulador de eventos específico
-            taskForm.removeEventListener('submit', handleEditTaskEvent);
-            
-            // Restaurar o manipulador original para adição de tarefas
-            taskForm.addEventListener('submit', handleAddTaskEvent);
-            
-            // Limpar o ID da tarefa sendo editada
-            delete taskForm.dataset.editingTaskId;
-        });
+        }
+        
+        // Guardar referência ao manipulador para poder removê-lo posteriormente
+        taskForm._editHandler = handleEditTaskEvent;
+        
+        // Adicionar o manipulador
+        taskForm.addEventListener('submit', handleEditTaskEvent);
     }
+    
+    // Abrir o modal
+    openModal();
+}
+
+// Função auxiliar para resetar o formulário
+function resetTaskForm() {
+    console.log('Resetando o formulário de tarefas');
+    
+    const taskForm = document.getElementById('task-form');
+    if (!taskForm) return;
+    
+    // Limpar o formulário
+    taskForm.reset();
+    
+    // Limpar o ID da tarefa sendo editada
+    delete taskForm.dataset.editingTaskId;
+    
+    // Remover manipulador de edição, se existir
+    const editHandler = taskForm._editHandler;
+    if (editHandler) {
+        taskForm.removeEventListener('submit', editHandler);
+        delete taskForm._editHandler;
+    }
+    
+    // Restaurar manipulador original
+    taskForm.removeEventListener('submit', handleAddTaskEvent);
+    taskForm.addEventListener('submit', handleAddTaskEvent);
+    
+    // Restaurar textos para adição
+    const formTitle = document.querySelector('#task-form-modal .modal-title');
+    const submitButton = document.querySelector('#task-form .btn-primary');
+    
+    if (formTitle) formTitle.textContent = 'Nova Tarefa';
+    if (submitButton) submitButton.textContent = 'Adicionar';
+    
+    // Limpar restrições de data
+    clearDateRestrictions();
+    
+    console.log('Formulário restaurado para modo de adição');
 }
 
 // Atualizar contadores de tarefas
@@ -1657,7 +1794,75 @@ function setupStatusFilters() {
     });
 }
 
-// Função para deletar uma tarefa
+// Adicionar estilos CSS para animações de exclusão se ainda não existirem
+if (!document.getElementById('task-delete-animations')) {
+    const styleElement = document.createElement('style');
+    styleElement.id = 'task-delete-animations';
+    styleElement.textContent = `
+        /* Animações para exclusão de tarefas */
+        .pre-delete {
+            position: relative;
+            z-index: 1;
+        }
+        
+        .pre-delete::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(255, 0, 0, 0.05);
+            z-index: -1;
+            border-radius: inherit;
+            pointer-events: none;
+        }
+        
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
+            20%, 40%, 60%, 80% { transform: translateX(5px); }
+        }
+        
+        @keyframes fadeOutLeft {
+            from { 
+                opacity: 1;
+                transform: translateX(0);
+            }
+            to { 
+                opacity: 0;
+                transform: translateX(-50px);
+            }
+        }
+        
+        @keyframes collapse {
+            from { 
+                max-height: var(--original-height, 100px);
+                margin-top: var(--original-margin-top, 0);
+                margin-bottom: var(--original-margin-bottom, 0);
+                padding-top: var(--original-padding-top, 0);
+                padding-bottom: var(--original-padding-bottom, 0);
+                opacity: 1;
+            }
+            to { 
+                max-height: 0;
+                margin-top: 0;
+                margin-bottom: 0;
+                padding-top: 0;
+                padding-bottom: 0;
+                opacity: 0;
+            }
+        }
+        
+        .removing {
+            animation: fadeOutLeft 0.5s ease forwards, collapse 0.5s ease 0.3s forwards;
+            overflow: hidden;
+            pointer-events: none;
+        }
+    `;
+    document.head.appendChild(styleElement);
+}
+
 function deleteTask(taskId) {
     try {
         // Encontrar a tarefa para obter os detalhes
@@ -1681,28 +1886,53 @@ function deleteTask(taskId) {
             return false;
         }
         
-        // Adicionar classe de animação ao elemento antes da confirmação
+        // Encontrar e preparar os elementos da tarefa para animação
         const taskElements = document.querySelectorAll(`[data-task-id="${taskId}"]`);
         taskElements.forEach(element => {
+            // Salvar as dimensões originais para a animação
+            const computedStyle = window.getComputedStyle(element);
+            element.style.setProperty('--original-height', `${element.offsetHeight}px`);
+            element.style.setProperty('--original-margin-top', computedStyle.marginTop);
+            element.style.setProperty('--original-margin-bottom', computedStyle.marginBottom);
+            element.style.setProperty('--original-padding-top', computedStyle.paddingTop);
+            element.style.setProperty('--original-padding-bottom', computedStyle.paddingBottom);
+            
+            // Adicionar classe para efeito visual de pré-exclusão
             element.classList.add('pre-delete');
-            // Adicionar efeito de tremor
-            element.animate([
-                { transform: 'translateX(0)' },
-                { transform: 'translateX(-5px)' },
-                { transform: 'translateX(5px)' },
-                { transform: 'translateX(0)' }
-            ], {
-                duration: 400,
-                iterations: 1
-            });
+            
+            // Adicionar animação de tremor para chamar atenção
+            element.animate(
+                [
+                    { transform: 'translateX(0)' },
+                    { transform: 'translateX(-5px)' },
+                    { transform: 'translateX(5px)' },
+                    { transform: 'translateX(-5px)' },
+                    { transform: 'translateX(5px)' },
+                    { transform: 'translateX(0)' }
+                ], 
+                {
+                    duration: 500,
+                    easing: 'ease-in-out'
+                }
+            );
         });
         
         // Exibir diálogo de confirmação elegante
         showConfirmDialog(
             'Excluir Tarefa',
-            `Tem certeza que deseja excluir a tarefa "${taskTitle}"? Esta ação não pode ser desfeita.`,
+            `<div style="text-align: center; padding: 10px 0;">
+                <div style="font-size: 18px; margin-bottom: 15px;">
+                    Tem certeza que deseja excluir a tarefa?
+                </div>
+                <div style="font-weight: bold; padding: 10px; background-color: rgba(0,0,0,0.05); border-radius: 5px; margin-bottom: 15px; word-break: break-word;">
+                    "${taskTitle}"
+                </div>
+                <div style="color: #e74c3c; font-size: 14px;">
+                    <i class="fas fa-exclamation-triangle"></i> Esta ação não pode ser desfeita
+                </div>
+            </div>`,
             async () => {
-                // Animar a remoção
+                // Animar a remoção após confirmar a exclusão
                 taskElements.forEach(element => {
                     element.classList.add('removing');
                 });
@@ -1760,7 +1990,7 @@ function deleteTask(taskId) {
                         console.error('Erro ao excluir tarefa:', error);
                         showErrorNotification('Ocorreu um erro ao excluir a tarefa.');
                     }
-                }, 400); // Tempo para coincidir com a duração da animação
+                }, 800); // Tempo aumentado para cobrir a duração das animações
             },
             'delete' // Tipo especial para ações de exclusão
         );
@@ -2376,66 +2606,110 @@ async function addNewTask(newTask) {
 // Função para atualizar uma tarefa existente
 async function updateExistingTask(taskId, updatedData) {
     try {
-        let taskFound = false;
-        let originalCategory = null;
+        console.log('Iniciando atualização da tarefa:', taskId, 'com dados:', updatedData);
         
-        // Encontrar a tarefa e sua categoria
-        Object.keys(window.tasks).forEach(category => {
-            const taskIndex = window.tasks[category].findIndex(t => t.id === taskId);
-            if (taskIndex !== -1) {
-                taskFound = true;
-                originalCategory = category;
+        // Verificar se todas as categorias existem para evitar erros
+        const categories = ['day', 'week', 'month', 'year'];
+        categories.forEach(category => {
+            if (!window.tasks[category]) {
+                window.tasks[category] = [];
             }
         });
         
-        if (!taskFound) {
+        // Primeiro, encontrar a tarefa em TODAS as categorias
+        let taskFound = false;
+        let originalCategory = null;
+        let originalTaskIndex = -1;
+        let originalTask = null;
+        
+        // Remover a tarefa de todas as categorias onde ela possa existir
+        categories.forEach(category => {
+            // Encontrar todas as instâncias da tarefa
+            const indexes = [];
+            window.tasks[category].forEach((task, index) => {
+                if (task.id === taskId) {
+                    indexes.push(index);
+                    taskFound = true;
+                    // Guardar a primeira ocorrência como original
+                    if (originalCategory === null) {
+                        originalCategory = category;
+                        originalTaskIndex = index;
+                        originalTask = {...task}; // Criar cópia para preservar original
+                    }
+                }
+            });
+            
+            // Remover todas as instâncias duplicadas (de trás para frente para não afetar os índices)
+            for (let i = indexes.length - 1; i >= 0; i--) {
+                console.log(`Removendo tarefa ID:${taskId} da categoria ${category}, índice ${indexes[i]}`);
+                window.tasks[category].splice(indexes[i], 1);
+            }
+        });
+        
+        if (!taskFound || !originalTask) {
             console.error('Tarefa não encontrada para atualização:', taskId);
             showErrorNotification('Tarefa não encontrada');
             return;
         }
         
+        console.log('Tarefa original encontrada na categoria:', originalCategory);
+        
+        // Criar a tarefa atualizada combinando a original com as atualizações
+        const updatedTask = {
+            ...originalTask,
+            ...updatedData,
+            updatedAt: new Date().toISOString()
+        };
+        
+        // Garantir que mantemos o ID original
+        updatedTask.id = taskId;
+        
+        console.log('Tarefa atualizada:', updatedTask);
+        
+        // Adicionar a tarefa atualizada à categoria correta
+        if (!window.tasks[updatedTask.category]) {
+            window.tasks[updatedTask.category] = [];
+        }
+        
+        window.tasks[updatedTask.category].push(updatedTask);
+        console.log(`Tarefa adicionada à categoria ${updatedTask.category}`);
+        
         // Tentar atualizar no Supabase
         try {
             await window.supabaseApi.updateTask(taskId, updatedData);
-            console.log('Tarefa atualizada no Supabase');
+            console.log('Tarefa atualizada no Supabase com sucesso');
         } catch (error) {
             console.error('Erro ao atualizar no Supabase:', error);
             showWarningNotification('Atualização local bem-sucedida, mas falhou no servidor');
         }
         
-        // Atualizar localmente
-        const taskIndex = window.tasks[originalCategory].findIndex(t => t.id === taskId);
+        // Salvar no localStorage
+        localStorage.setItem('tasks', JSON.stringify(window.tasks));
+        console.log('Tarefas atualizadas salvas no localStorage');
         
-        // Se a categoria mudou, mover a tarefa
-        if (originalCategory !== updatedData.category) {
-            // Remover da categoria original
-            const taskToMove = window.tasks[originalCategory].splice(taskIndex, 1)[0];
-            
-            // Atualizar dados da tarefa
-            const updatedTask = { ...taskToMove, ...updatedData };
-            
-            // Adicionar na nova categoria
-            if (!window.tasks[updatedData.category]) {
-                window.tasks[updatedData.category] = [];
+        // Atualizar a UI
+        renderTasks();
+        showSuccessNotification('Tarefa atualizada com sucesso!');
+        
+        // Se estamos na página do calendário, atualizar o calendário
+        const calendarioView = document.getElementById('calendario-view');
+        if (calendarioView && calendarioView.style.display === 'block') {
+            if (typeof loadCalendarTasks === 'function') {
+                loadCalendarTasks();
             }
-            window.tasks[updatedData.category].push(updatedTask);
         } else {
-            // Atualizar na mesma categoria
-            window.tasks[originalCategory][taskIndex] = { 
-                ...window.tasks[originalCategory][taskIndex], 
-                ...updatedData 
-            };
+            // Armazenar tarefas para uso futuro no calendário
+            if (typeof window._storeTasksForCalendar === 'function') {
+                window._storeTasksForCalendar(window.tasks);
+            }
         }
         
-        // Salvar e atualizar UI
-        saveTasks();
-        renderTasks();
-        
-        showSuccessNotification('Tarefa atualizada com sucesso!');
+        return updatedTask;
         
     } catch (error) {
         console.error('Erro ao atualizar tarefa:', error);
         showErrorNotification('Erro ao atualizar tarefa');
+        return null;
     }
 }
 
@@ -2818,9 +3092,181 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // Função para exibir modal de confirmação elegante
 function showConfirmDialog(title, message, confirmCallback, type = 'default') {
+    // Remover qualquer diálogo de confirmação existente para evitar duplicação
+    const existingModal = document.querySelector('.confirm-modal');
+    if (existingModal) {
+        existingModal.remove();
+    }
+    
     // Criar o modal de confirmação
     const modal = document.createElement('div');
     modal.className = 'confirm-modal';
+    
+    // Adicionar estilos ao modal caso não exista um estilo global
+    if (!document.getElementById('confirm-dialog-styles')) {
+        const styleElement = document.createElement('style');
+        styleElement.id = 'confirm-dialog-styles';
+        styleElement.textContent = `
+            .confirm-modal {
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background-color: rgba(0, 0, 0, 0.5);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                z-index: 9999;
+                opacity: 0;
+                animation: fadeIn 0.3s ease forwards;
+            }
+            
+            @keyframes fadeIn {
+                from { opacity: 0; }
+                to { opacity: 1; }
+            }
+            
+            @keyframes slideIn {
+                from { transform: translateY(-50px); opacity: 0; }
+                to { transform: translateY(0); opacity: 1; }
+            }
+            
+            .confirm-box {
+                background-color: var(--bg-color, #fff);
+                border-radius: 12px;
+                box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+                width: 90%;
+                max-width: 450px;
+                padding: 0;
+                overflow: hidden;
+                animation: slideIn 0.3s ease forwards;
+                border: 1px solid rgba(0, 0, 0, 0.1);
+            }
+            
+            .confirm-header {
+                padding: 20px;
+                display: flex;
+                align-items: center;
+                border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+                background-color: var(--lighter-bg-color, #f8f9fa);
+            }
+            
+            .confirm-header i {
+                font-size: 24px;
+                margin-right: 15px;
+            }
+            
+            .confirm-header h3 {
+                margin: 0;
+                font-size: 18px;
+                color: var(--text-color, #333);
+            }
+            
+            .confirm-body {
+                padding: 20px;
+                font-size: 16px;
+                line-height: 1.5;
+                color: var(--text-color, #333);
+                max-height: 70vh;
+                overflow-y: auto;
+            }
+            
+            .confirm-footer {
+                padding: 15px 20px;
+                display: flex;
+                justify-content: flex-end;
+                gap: 10px;
+                border-top: 1px solid rgba(0, 0, 0, 0.1);
+                background-color: var(--lighter-bg-color, #f8f9fa);
+            }
+            
+            .btn-cancel-action {
+                padding: 10px 15px;
+                border: 1px solid rgba(0, 0, 0, 0.2);
+                background-color: var(--bg-color, #fff);
+                color: var(--text-color, #333);
+                border-radius: 5px;
+                cursor: pointer;
+                transition: all 0.2s;
+                font-weight: 500;
+            }
+            
+            .btn-cancel-action:hover {
+                background-color: var(--lighter-bg-color, #f8f9fa);
+            }
+            
+            .btn-confirm-action {
+                padding: 10px 20px;
+                border: none;
+                background-color: #3498db;
+                color: white;
+                border-radius: 5px;
+                cursor: pointer;
+                transition: all 0.2s;
+                font-weight: 500;
+            }
+            
+            .btn-confirm-action:hover {
+                background-color: #2980b9;
+            }
+            
+            .btn-confirm-action.delete {
+                background-color: #e74c3c;
+            }
+            
+            .btn-confirm-action.delete:hover {
+                background-color: #c0392b;
+            }
+            
+            .confirm-icon-container {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                width: 40px;
+                height: 40px;
+                border-radius: 50%;
+                margin-right: 15px;
+            }
+            
+            .icon-delete {
+                background-color: rgba(231, 76, 60, 0.1);
+                color: #e74c3c;
+            }
+            
+            .icon-warning {
+                background-color: rgba(243, 156, 18, 0.1);
+                color: #f39c12;
+            }
+            
+            .icon-default {
+                background-color: rgba(52, 152, 219, 0.1);
+                color: #3498db;
+            }
+            
+            /* Responsividade */
+            @media (max-width: 576px) {
+                .confirm-box {
+                    width: 95%;
+                    margin: 10px;
+                }
+                .confirm-header i {
+                    font-size: 20px;
+                }
+                .confirm-header h3 {
+                    font-size: 16px;
+                }
+                .confirm-body {
+                    font-size: 14px;
+                    padding: 15px;
+                }
+                .confirm-footer {
+                    padding: 12px 15px;
+                }
+            }
+        `;
+        document.head.appendChild(styleElement);
+    }
     
     // Criar a caixa de confirmação
     const confirmBox = document.createElement('div');
@@ -2828,16 +3274,29 @@ function showConfirmDialog(title, message, confirmCallback, type = 'default') {
     
     // Ícone com base no tipo
     let icon = 'question-circle';
-    if (type === 'delete') icon = 'trash-alt';
-    if (type === 'warning') icon = 'exclamation-triangle';
+    let iconClass = 'icon-default';
+    
+    if (type === 'delete') {
+        icon = 'trash-alt';
+        iconClass = 'icon-delete';
+    } else if (type === 'warning') {
+        icon = 'exclamation-triangle';
+        iconClass = 'icon-warning';
+    }
     
     // Cabeçalho
     const header = document.createElement('div');
     header.className = 'confirm-header';
-    header.innerHTML = `
-        <i class="fas fa-${icon}"></i>
-        <h3>${title}</h3>
-    `;
+    
+    const iconContainer = document.createElement('div');
+    iconContainer.className = `confirm-icon-container ${iconClass}`;
+    iconContainer.innerHTML = `<i class="fas fa-${icon}"></i>`;
+    
+    header.appendChild(iconContainer);
+    
+    const titleElement = document.createElement('h3');
+    titleElement.textContent = title;
+    header.appendChild(titleElement);
     
     // Conteúdo
     const body = document.createElement('div');
@@ -2853,7 +3312,14 @@ function showConfirmDialog(title, message, confirmCallback, type = 'default') {
     cancelBtn.className = 'btn-cancel-action';
     cancelBtn.textContent = 'Cancelar';
     cancelBtn.onclick = () => {
-        document.body.removeChild(modal);
+        // Adicionar animação de saída
+        modal.style.animation = 'fadeIn 0.3s ease forwards reverse';
+        confirmBox.style.animation = 'slideIn 0.3s ease forwards reverse';
+        
+        // Remover após a animação
+        setTimeout(() => {
+            document.body.removeChild(modal);
+        }, 300);
     };
     
     // Botão Confirmar
@@ -2861,10 +3327,17 @@ function showConfirmDialog(title, message, confirmCallback, type = 'default') {
     confirmBtn.className = type === 'delete' ? 'btn-confirm-action delete' : 'btn-confirm-action';
     confirmBtn.textContent = type === 'delete' ? 'Excluir' : 'Confirmar';
     confirmBtn.onclick = () => {
-        document.body.removeChild(modal);
-        if (typeof confirmCallback === 'function') {
-            confirmCallback();
-        }
+        // Adicionar animação de saída
+        modal.style.animation = 'fadeIn 0.3s ease forwards reverse';
+        confirmBox.style.animation = 'slideIn 0.3s ease forwards reverse';
+        
+        // Remover após a animação e chamar o callback
+        setTimeout(() => {
+            document.body.removeChild(modal);
+            if (typeof confirmCallback === 'function') {
+                confirmCallback();
+            }
+        }, 300);
     };
     
     // Montar o modal
@@ -2877,6 +3350,28 @@ function showConfirmDialog(title, message, confirmCallback, type = 'default') {
     
     modal.appendChild(confirmBox);
     document.body.appendChild(modal);
+    
+    // Fechar ao clicar fora da caixa de confirmação
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+            cancelBtn.click(); // Usar o botão cancelar para fechar com animação
+        }
+    });
+    
+    // Adicionar suporte a teclas (Esc para cancelar, Enter para confirmar)
+    document.addEventListener('keydown', function keyListener(e) {
+        if (!document.body.contains(modal)) {
+            document.removeEventListener('keydown', keyListener);
+            return;
+        }
+        
+        if (e.key === 'Escape') {
+            cancelBtn.click();
+        } else if (e.key === 'Enter' && document.activeElement !== cancelBtn) {
+            e.preventDefault();
+            confirmBtn.click();
+        }
+    });
     
     // Focar no botão Cancelar por segurança
     cancelBtn.focus();
@@ -3551,4 +4046,167 @@ window.dashboardFilters.setFiltersFromRadio = function(radioValue) {
         });
     }
 };
+
+// Função para configurar eventos em elementos de tarefas
+function setupTaskEventHandlers() {
+    console.log('Configurando manipuladores de eventos para botões das tarefas...');
+    
+    // Configurar botões de editar nas tabelas de tarefas
+    const editButtons = document.querySelectorAll('.edit-button, .task-action-btn.edit-task');
+    editButtons.forEach(button => {
+        // Verificar se o evento já não foi adicionado anteriormente
+        if (!button.hasEventListener) {
+            button.addEventListener('click', (e) => {
+                e.stopPropagation(); // Impedir propagação
+                
+                // Encontrar o ID da tarefa a partir do elemento pai
+                const taskElement = button.closest('[data-task-id]');
+                if (!taskElement) return;
+                
+                const taskId = taskElement.dataset.taskId;
+                console.log('Botão de editar clicado para tarefa ID:', taskId);
+                
+                // Encontrar a tarefa completa
+                const task = findTaskById(taskId);
+                if (task) {
+                    prepareEditTask(task);
+                }
+            });
+            
+            // Marcar que o evento foi adicionado
+            button.hasEventListener = true;
+        }
+    });
+    
+    // Configurar botões de excluir nas tabelas de tarefas
+    const deleteButtons = document.querySelectorAll('.delete-button, .task-action-btn.delete-task');
+    deleteButtons.forEach(button => {
+        // Verificar se o evento já não foi adicionado anteriormente
+        if (!button.hasEventListener) {
+            button.addEventListener('click', (e) => {
+                e.stopPropagation(); // Impedir propagação
+                
+                // Encontrar o ID da tarefa a partir do elemento pai
+                const taskElement = button.closest('[data-task-id]');
+                if (!taskElement) return;
+                
+                const taskId = taskElement.dataset.taskId;
+                console.log('Botão de excluir clicado para tarefa ID:', taskId);
+                
+                // Chamar a função de exclusão
+                deleteTask(taskId);
+            });
+            
+            // Marcar que o evento foi adicionado
+            button.hasEventListener = true;
+        }
+    });
+    
+    // Configurar selectores de status nas tabelas
+    const statusSelects = document.querySelectorAll('.status-select');
+    statusSelects.forEach(select => {
+        if (!select.hasEventListener) {
+            select.addEventListener('change', (e) => {
+                const newStatus = e.target.value;
+                const taskId = e.target.getAttribute('data-task-id');
+                
+                console.log(`Alterando status da tarefa ${taskId} para ${newStatus}`);
+                
+                // Adicionar classe para destacar a alteração
+                const taskElement = e.target.closest('.task-item, .task-row');
+                if (taskElement) {
+                    taskElement.classList.add('highlight-success');
+                    
+                    // Remover classe após a animação
+                    setTimeout(() => {
+                        taskElement.classList.remove('highlight-success');
+                    }, 1500);
+                }
+                
+                // Atualizar o status
+                updateTaskStatus(taskId, newStatus);
+            });
+            
+            select.hasEventListener = true;
+        }
+    });
+}
+
+// Função auxiliar para encontrar uma tarefa pelo ID
+function findTaskById(taskId) {
+    let foundTask = null;
+    
+    // Buscar em todas as categorias
+    Object.keys(window.tasks).forEach(category => {
+        const found = window.tasks[category].find(task => task.id === taskId);
+        if (found) {
+            foundTask = found;
+        }
+    });
+    
+    return foundTask;
+}
+
+// Adicionar estilos CSS para animações do modal
+if (!document.getElementById('modal-animations-styles')) {
+    const styleElement = document.createElement('style');
+    styleElement.id = 'modal-animations-styles';
+    styleElement.textContent = `
+        .modal {
+            transition: opacity 0.3s ease-in-out;
+        }
+        
+        .modal-closing {
+            opacity: 0;
+        }
+        
+        .modal-content {
+            transition: transform 0.3s ease-in-out;
+        }
+        
+        .modal.show .modal-content {
+            transform: translateY(0);
+        }
+        
+        .modal-closing .modal-content {
+            transform: translateY(-20px);
+        }
+    `;
+    document.head.appendChild(styleElement);
+}
+
+// Função para abrir modal
+function openModal() {
+    console.log("Abrindo modal...");
+    
+    const taskFormModal = document.getElementById('task-form-modal');
+    if (!taskFormModal) {
+        console.error("Modal não encontrado!");
+        return;
+    }
+    
+    // Restaurar o estilo inicial para animação
+    taskFormModal.style.opacity = '0';
+    
+    // Mostrar o modal
+    taskFormModal.style.display = 'block';
+    
+    // Impedir scroll no fundo
+    document.body.style.overflow = 'hidden';
+    
+    // Iniciar animação após um microtick para o navegador aplicar o display
+    setTimeout(() => {
+        taskFormModal.style.opacity = '1';
+        taskFormModal.classList.add('show');
+        
+        // Focar no primeiro campo do formulário se existir
+        const taskInput = document.getElementById('task-input');
+        if (taskInput) {
+            taskInput.focus();
+        }
+    }, 10);
+    
+    // Limpar restrições de data
+    clearDateRestrictions();
+}
 
