@@ -137,7 +137,7 @@ function setupAuthenticationListener() {
         
         if (event === 'SIGNED_OUT') {
             // Redirecionar para a página de login
-            window.location.href = 'auth.html';
+            window.location.href = 'index.html';
         } else if (event === 'USER_UPDATED') {
             // Atualizar perfil
             getUserProfile().then(profile => {
@@ -179,7 +179,7 @@ logoutButton.addEventListener('click', async (e) => {
         await logoutUser();
         
         // Redirecionar para a página de login
-        window.location.href = 'auth.html';
+        window.location.href = 'index.html';
     } catch (error) {
         console.error('Erro ao fazer logout:', error);
         showErrorNotification('Erro ao fazer logout');
@@ -1786,13 +1786,47 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 // Configurar filtros de status
 function setupStatusFilters() {
-    statusFilterRadios.forEach(radio => {
-        radio.addEventListener('change', (e) => {
-            const status = e.target.value;
-            performFilterByStatus(status);
+    try {
+        console.log('Configurando filtros de status...');
+        
+        const statusFilterContainer = document.querySelector('.status-filter');
+        if (!statusFilterContainer) {
+            console.warn('Container de filtros de status não encontrado');
+            return;
+        }
+        
+        const statusFilterRadios = statusFilterContainer.querySelectorAll('input[type="radio"]');
+        if (!statusFilterRadios || statusFilterRadios.length === 0) {
+            console.warn('Nenhum radio button de filtro encontrado');
+            return;
+        }
+        
+        statusFilterRadios.forEach(radio => {
+            radio.addEventListener('change', function() {
+                if (this.checked) {
+                    const selectedStatus = this.value;
+                    console.log('Filtro de status alterado para:', selectedStatus);
+                    filterTasks(selectedStatus);
+                }
+            });
         });
-    });
+        
+        console.log('Filtros de status configurados com sucesso');
+    } catch (error) {
+        console.error('Erro ao configurar filtros de status:', error);
+    }
 }
+
+// Inicializar quando o documento estiver pronto
+document.addEventListener('DOMContentLoaded', function() {
+    try {
+        console.log('Inicializando configurações...');
+        setupStatusFilters();
+        // ... resto do código de inicialização ...
+    } catch (error) {
+        console.error('Erro durante a inicialização:', error);
+    }
+});
 
 // Adicionar estilos CSS para animações de exclusão se ainda não existirem
 if (!document.getElementById('task-delete-animations')) {

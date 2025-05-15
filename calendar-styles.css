@@ -1,0 +1,101 @@
+/* Variáveis CSS para fácil manutenção e consistência */
+:root {
+    --calendar-primary: #8e44ad;
+    --calendar-secondary: #9b59b6;
+    --calendar-bg: #fff;
+    --calendar-border: #e9ecef;
+    --calendar-shadow: rgba(142, 68, 173, 0.3);
+    --calendar-text: #333;
+    --calendar-text-light: #666;
+}
+
+/* Tema escuro */
+body.dark {
+    --calendar-primary: #9b59b6;
+    --calendar-secondary: #8e44ad;
+    --calendar-bg: #1e293b;
+    --calendar-border: #2d3748;
+    --calendar-shadow: rgba(155, 89, 182, 0.3);
+    --calendar-text: #e2e8f0;
+    --calendar-text-light: #cbd5e1;
+}
+
+/* Estilos base otimizados */
+.calendar-cell {
+    min-height: 120px;
+    background-color: var(--calendar-bg);
+    border-radius: 10px;
+    border: 1px solid var(--calendar-border);
+    padding: 8px;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.03);
+    will-change: transform, box-shadow;
+}
+
+.calendar-tasks-container {
+    flex: 1;
+    overflow-y: auto;
+    padding-right: 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    max-height: 150px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--calendar-shadow) transparent;
+}
+
+/* Otimização de scrollbar */
+.calendar-tasks-container::-webkit-scrollbar {
+    width: 6px;
+}
+
+.calendar-tasks-container::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.calendar-tasks-container::-webkit-scrollbar-thumb {
+    background-color: var(--calendar-shadow);
+    border-radius: 3px;
+}
+
+/* Botão otimizado */
+.view-all-tasks-btn {
+    width: calc(100% - 8px);
+    height: 24px;
+    margin: 4px;
+    padding: 0 10px;
+    border: none;
+    background-color: var(--calendar-primary);
+    color: white;
+    font-size: 0.75rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: transform 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease;
+    text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    box-shadow: 0 2px 4px var(--calendar-shadow);
+    will-change: transform, background-color, box-shadow;
+}
+
+.view-all-tasks-btn:hover {
+    background-color: var(--calendar-secondary);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px var(--calendar-shadow);
+}
+
+.view-all-tasks-btn:active {
+    transform: translateY(0);
+    background-color: var(--calendar-primary);
+    box-shadow: 0 2px 4px var(--calendar-shadow);
+}
+
+.view-all-tasks-btn i {
+    font-size: 0.7rem;
+    margin-right: 6px;
+} 

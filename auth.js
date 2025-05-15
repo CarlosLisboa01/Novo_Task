@@ -79,7 +79,7 @@ function hideButtonLoading(button) {
 
 // Redirecionar usuário logado para o dashboard
 function redirectLoggedInUser() {
-    window.location.href = 'index.html';
+    window.location.href = 'task.html';
 }
 
 // Evento para alternar para o formulário de registro

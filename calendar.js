@@ -3,66 +3,304 @@ let currentMonth = new Date().getMonth();
 let currentYear = new Date().getFullYear();
 let calendarTasks = {};
 let isCalendarInitialized = false;
-let calendarObserver = null; // Observer para monitorar alterações no DOM do calendário
+let calendarObserver = null;
 
-// Armazenamento temporário para tarefas vindas do dashboard
-let storedTasksFromDashboard = null;
+// Sistema de observação de mudanças
+const CalendarObserver = {
+    callbacks: new Set(),
+    
+    // Registrar um callback para mudanças
+    subscribe: function(callback) {
+        this.callbacks.add(callback);
+        return () => this.callbacks.delete(callback);
+    },
+    
+    // Notificar todos os observadores
+    notify: function(changeType, data) {
+        console.log(`[Calendar] Notificando mudança: ${changeType}`, data);
+        this.callbacks.forEach(callback => {
+            try {
+                callback(changeType, data);
+            } catch (error) {
+                console.error('[Calendar] Erro ao executar callback:', error);
+            }
+        });
+    }
+};
 
-// Função para armazenar tarefas do dashboard para uso futuro no calendário
-window._storeTasksForCalendar = function(tasks) {
-    console.log('Armazenando tarefas do dashboard para uso futuro no calendário');
-    storedTasksFromDashboard = JSON.parse(JSON.stringify(tasks)); // Cópia profunda para evitar referências
+// Função para debug do estado das tarefas
+function debugCalendarState() {
+    console.group('[Calendar Debug]');
+    console.log('Estado atual do calendário:');
+    console.log('Tarefas carregadas:', Object.keys(calendarTasks).length);
+    console.log('Estado global (window.tasks):', window.tasks ? 'Disponível' : 'Não disponível');
+    console.log('Supabase API:', typeof window.supabaseApi !== 'undefined' ? 'Disponível' : 'Não disponível');
+    console.log('Cache local:', localStorage.getItem('calendar_tasks') ? 'Disponível' : 'Não disponível');
+    console.log('Calendário inicializado:', isCalendarInitialized);
+    console.groupEnd();
+}
+
+// Cache de elementos DOM frequentemente usados
+const DOM = {
+    get calendarContainer() { return document.querySelector('#calendario-view .calendar-container') },
+    get calendarGrid() { return document.getElementById('calendar-grid') },
+    get monthYearElement() { return document.getElementById('calendar-month-year') }
+};
+
+// Constantes
+const MONTH_NAMES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+const WEEKDAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+const STATUS_LABELS = {
+    'pending': 'Em andamento',
+    'completed': 'Concluído',
+    'finished': 'Finalizado',
+    'late': 'Em atraso'
 };
 
 // Função para inicializar o calendário
-function initCalendar() {
-    console.log('Inicializando calendário...');
-    
-    // Selecionar o container do calendário
-    const calendarContainer = document.querySelector('#calendario-view .calendar-container');
-    if (!calendarContainer) {
-        console.error('Container do calendário não encontrado!');
-        return;
-    }
-    
-    console.log('Container do calendário encontrado:', calendarContainer);
-    
-    // Verificar se já existem elementos no calendário para evitar duplicação
-    const existingControls = calendarContainer.querySelector('.calendar-controls');
-    const existingGrid = calendarContainer.querySelector('.calendar-grid');
-    
-    // Se já estiver inicializado e existirem controles, apenas renderizar o calendário
-    if (isCalendarInitialized && existingControls && existingGrid) {
-        console.log('Calendário já inicializado, apenas atualizando...');
+async function initCalendar() {
+    try {
+        console.group('[Calendar Debug] Inicializando calendário');
+        console.log('Estado atual:', {
+            globalSync: !!window.GlobalSync,
+            tasks: !!window.tasks,
+            localStorage: !!localStorage.getItem('calendar_tasks')
+        });
         
-        // Limpar possíveis duplicações antes de renderizar novamente
-        cleanupCalendarElements();
+        const calendarContainer = document.querySelector('#calendario-view .calendar-container');
+        const calendarGrid = document.getElementById('calendar-grid');
         
-        // Garantir que os event listeners existam
-        setupNavigationListeners();
-        
-        renderCalendar();
-        return;
-    }
-    
-    // Limpar quaisquer elementos duplicados
-    cleanupCalendarElements();
-    
-    // Marcar como inicializado
-    isCalendarInitialized = true;
+        if (!calendarContainer || !calendarGrid) {
+            console.error('Elementos do calendário não encontrados:', {
+                container: !!calendarContainer,
+                grid: !!calendarGrid
+            });
+            throw new Error('Elementos do calendário não encontrados');
+        }
 
-    // Carregar as tarefas para o calendário
-    loadCalendarTasks().then(() => {
-        // Renderizar o calendário após carregar as tarefas
-        renderCalendar();
-        
-        // Configurar event listeners para botões de navegação
-        setupNavigationListeners();
-        
-        // Integrar com o gerenciador de status
+        // Mostrar indicador de carregamento
+        calendarGrid.innerHTML = `
+            <div class="calendar-loading">
+                <div class="loading-spinner"></div>
+                <span>Carregando calendário...</span>
+            </div>
+        `;
+
+        // Configurar integrações primeiro
+        console.log('Configurando integrações...');
+        setupGlobalSyncIntegration();
+        integrateWithKPI();
         integrateWithTaskStatusManager();
-    });
+        
+        // Configurar atualizações instantâneas
+        console.log('Configurando atualizações instantâneas...');
+        setupInstantUpdates();
+        
+        // Limpar elementos duplicados
+        console.log('Limpando elementos duplicados...');
+        cleanupCalendarElements();
+
+        // Carregar tarefas
+        console.log('Carregando tarefas...');
+        await loadCalendarTasks();
+        
+        console.log('Tarefas carregadas:', calendarTasks);
+
+        // Renderizar o calendário
+        console.log('Renderizando calendário...');
+        renderCalendar();
+
+        // Configurar navegação
+        console.log('Configurando navegação...');
+        setupNavigationListeners();
+
+        isCalendarInitialized = true;
+        console.log('Inicialização concluída com sucesso');
+        console.groupEnd();
+
+    } catch (error) {
+        console.error('[Calendar] Erro ao inicializar calendário:', error);
+        console.groupEnd();
+        
+        showCalendarError(`Erro ao carregar o calendário: ${error.message}`);
+        
+        // Tentar recuperar de forma graciosa
+        setTimeout(() => {
+            console.log('Tentando reinicializar o calendário...');
+            retryInitCalendar();
+        }, 2000);
+    }
 }
+
+// Função para tentar novamente
+function retryInitCalendar() {
+    const calendarGrid = document.getElementById('calendar-grid');
+    if (calendarGrid) {
+        calendarGrid.innerHTML = '<div class="loading">Carregando calendário...</div>';
+    }
+    setTimeout(() => {
+        initCalendar();
+    }, 500);
+}
+
+// Função para carregar tarefas
+async function loadCalendarTasks() {
+    try {
+        showCalendarLoadingIndicator();
+        console.group('[Calendar Debug] Carregando Tarefas');
+        console.log('Iniciando carregamento de tarefas...');
+
+        // Tentar obter do GlobalSync primeiro
+        if (window.GlobalSync) {
+            if (window.GlobalSync.tasksByDate) {
+                console.log('Usando tasksByDate do GlobalSync');
+                calendarTasks = window.GlobalSync.tasksByDate;
+                console.groupEnd();
+                return;
+            } else if (window.GlobalSync.tasksCache) {
+                console.log('Processando tasksCache do GlobalSync');
+                calendarTasks = {};
+                Object.values(window.GlobalSync.tasksCache).flat().forEach(task => {
+                    if (task.startDate) {
+                        const dateKey = task.startDate.split('T')[0];
+                        if (!calendarTasks[dateKey]) {
+                            calendarTasks[dateKey] = [];
+                        }
+                        calendarTasks[dateKey].push(task);
+                    }
+                });
+                console.log('Tarefas processadas:', calendarTasks);
+                console.groupEnd();
+                return;
+            }
+        }
+
+        // Tentar carregar do estado global
+        if (window.tasks) {
+            console.log('Processando estado global');
+            calendarTasks = {};
+            Object.values(window.tasks).flat().forEach(task => {
+                if (task.startDate) {
+                    const dateKey = task.startDate.split('T')[0];
+                    if (!calendarTasks[dateKey]) {
+                        calendarTasks[dateKey] = [];
+                    }
+                    calendarTasks[dateKey].push(task);
+                }
+            });
+            console.log('Tarefas processadas do estado global:', calendarTasks);
+            console.groupEnd();
+            return;
+        }
+
+        // Tentar usar cache local
+        const storedTasks = localStorage.getItem('calendar_tasks');
+        if (storedTasks) {
+            console.log('Usando cache local');
+            calendarTasks = JSON.parse(storedTasks);
+            console.groupEnd();
+            return;
+        }
+
+        console.warn('Nenhuma fonte de dados disponível para tarefas');
+        console.groupEnd();
+        throw new Error('Não foi possível carregar as tarefas de nenhuma fonte');
+
+    } catch (error) {
+        console.error('[Calendar] Erro ao carregar tarefas:', error);
+        throw error;
+    } finally {
+        hideCalendarLoadingIndicator();
+    }
+}
+
+// Adicionar estilos CSS para o erro
+const styleSheet = document.createElement('style');
+styleSheet.textContent = `
+    .calendar-error {
+        width: 100%;
+        padding: 20px;
+        text-align: center;
+        color: #ef4444;
+        background: rgba(239, 68, 68, 0.1);
+        border-radius: 8px;
+    }
+
+    .error-message {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .error-message i {
+        font-size: 24px;
+        margin-bottom: 8px;
+    }
+
+    .retry-button {
+        padding: 8px 16px;
+        background: #ef4444;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 10px;
+        transition: all 0.2s ease;
+    }
+
+    .retry-button:hover {
+        background: #dc2626;
+    }
+
+    .loading {
+        text-align: center;
+        padding: 20px;
+        color: #6366f1;
+    }
+`;
+document.head.appendChild(styleSheet);
+
+// Adicionar estilos CSS para loading e erro
+const calendarStyles = document.createElement('style');
+calendarStyles.textContent = `
+    .calendar-loading {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 40px;
+        color: #6366f1;
+        gap: 16px;
+    }
+
+    .loading-spinner {
+        width: 40px;
+        height: 40px;
+        border: 4px solid #f3f3f3;
+        border-top: 4px solid #6366f1;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+
+    .error-details {
+        color: #666;
+        font-size: 0.9em;
+        margin: 8px 0;
+    }
+
+    ${styleSheet.textContent}
+`;
+
+document.head.appendChild(calendarStyles);
 
 // Função para limpar elementos duplicados no calendário
 function cleanupCalendarElements() {
@@ -83,358 +321,230 @@ function cleanupCalendarElements() {
     }
 }
 
-// Função para navegar entre os meses
-function navigateMonth(direction) {
-    currentMonth += direction;
-    
-    if (currentMonth > 11) {
-        currentMonth = 0;
-        currentYear++;
-    } else if (currentMonth < 0) {
-        currentMonth = 11;
-        currentYear--;
-    }
-    
-    renderCalendar();
-}
-
-// Função para renderizar o calendário
+// Função otimizada para renderizar o calendário
 function renderCalendar() {
-    const calendarGrid = document.getElementById('calendar-grid');
-    const monthYearElement = document.getElementById('calendar-month-year');
+    console.group('[Calendar Debug] Renderizando Calendário');
     
+    const { calendarGrid, monthYearElement } = DOM;
     if (!calendarGrid || !monthYearElement) {
-        console.error('Elementos necessários do calendário não encontrados');
+        console.error('Elementos DOM não encontrados');
+        console.groupEnd();
         return;
     }
-    
-    // Limpar grid do calendário
+
+    // Limpar grid
     calendarGrid.innerHTML = '';
-    
-    // Atualizar título do mês/ano
-    const monthNames = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
-    monthYearElement.textContent = `${monthNames[currentMonth]} ${currentYear}`;
-    
-    // Remover os botões de visualização (Mês, Semana, Dia) na inicialização do calendário
-    const calendarViewOptions = document.querySelector('.calendar-view-options');
-    if (calendarViewOptions) {
-        calendarViewOptions.style.display = 'none';
-    }
-    
-    // Remover a barra de navegação com os botões Anterior, Próximo e Hoje
-    const calendarNavigation = document.querySelector('.calendar-navigation');
-    if (calendarNavigation) {
-        calendarNavigation.style.display = 'none';
-    }
-    
-    // Adicionar cabeçalhos dos dias da semana
-    const weekdays = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
-    weekdays.forEach((day, index) => {
-        const dayHeader = document.createElement('div');
-        dayHeader.className = 'calendar-header';
-        
-        // Adicionar classe especial para finais de semana
-        if (index === 0 || index === 6) {
-            dayHeader.classList.add('calendar-weekend');
-        }
-        
-        dayHeader.textContent = day;
-        calendarGrid.appendChild(dayHeader);
+    monthYearElement.textContent = `${MONTH_NAMES[currentMonth]} ${currentYear}`;
+
+    console.log('Renderizando para:', {
+        mes: MONTH_NAMES[currentMonth],
+        ano: currentYear,
+        tarefasCarregadas: Object.keys(calendarTasks).length
     });
-    
-    // Calcular o primeiro e último dia do mês
+
+    // Adicionar cabeçalhos
+    const headerFragment = document.createDocumentFragment();
+    WEEKDAYS.forEach((day, index) => {
+        const dayHeader = document.createElement('div');
+        dayHeader.className = `calendar-header${index === 0 || index === 6 ? ' calendar-weekend' : ''}`;
+        dayHeader.textContent = day;
+        headerFragment.appendChild(dayHeader);
+    });
+    calendarGrid.appendChild(headerFragment);
+
+    // Calcular datas
     const firstDay = new Date(currentYear, currentMonth, 1);
     const lastDay = new Date(currentYear, currentMonth + 1, 0);
-    
-    // Adicionar células vazias para os dias anteriores ao primeiro dia do mês
+    const today = new Date();
+    const isCurrentMonth = currentMonth === today.getMonth() && currentYear === today.getFullYear();
+
+    console.log('Período do calendário:', {
+        inicio: firstDay.toISOString(),
+        fim: lastDay.toISOString(),
+        diasNoMes: lastDay.getDate()
+    });
+
+    // Criar células
+    const cellFragment = document.createDocumentFragment();
+
+    // Células vazias iniciais
     for (let i = 0; i < firstDay.getDay(); i++) {
         const emptyCell = document.createElement('div');
         emptyCell.className = 'calendar-cell calendar-empty';
-        calendarGrid.appendChild(emptyCell);
+        cellFragment.appendChild(emptyCell);
     }
-    
-    // Remover qualquer popup existente
-    const existingPopup = document.getElementById('calendar-task-popup');
-    if (existingPopup) {
-        existingPopup.remove();
-    }
-    
-    // Obter a data atual para comparação
-    const today = new Date();
-    const isCurrentMonth = currentMonth === today.getMonth() && currentYear === today.getFullYear();
-    
-    // Criar um fragmento de documento para melhorar o desempenho de renderização
-    const fragment = document.createDocumentFragment();
-    
-    // Adicionar células para cada dia do mês
+
+    // Células dos dias
     for (let day = 1; day <= lastDay.getDate(); day++) {
-        const dateCell = document.createElement('div');
-        dateCell.className = 'calendar-cell';
+        const dateCell = createDateCell(day, today, isCurrentMonth);
         
-        // Verificar se é hoje
-        const isToday = day === today.getDate() && currentMonth === today.getMonth() && currentYear === today.getFullYear();
-        const isPast = new Date(currentYear, currentMonth, day) < new Date(today.getFullYear(), today.getMonth(), today.getDate());
+        // Verificar se há tarefas para este dia
+        const currentDate = formatDate(currentYear, currentMonth, day);
+        const tasksForDay = calendarTasks[currentDate] || [];
         
-        // Adicionar classes com base no dia
-        if (isToday) {
-            dateCell.classList.add('calendar-today');
-        } else if (isPast && isCurrentMonth) {
-            dateCell.classList.add('calendar-past');
+        if (tasksForDay.length > 0) {
+            console.log(`Tarefas para ${currentDate}:`, tasksForDay.length);
         }
         
-        // Formato da data: YYYY-MM-DD
-        const formattedDate = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-        
-        // Armazenar data formatada como atributo de dados para fácil acesso
-        dateCell.dataset.date = formattedDate;
-        
-        // Criar cabeçalho da célula com número do dia e indicador de tarefas
-        const cellHeader = document.createElement('div');
-        cellHeader.className = 'calendar-cell-header';
-        
-        // Adicionar número do dia
-        const dayNumber = document.createElement('div');
-        dayNumber.className = 'calendar-day-number';
-        dayNumber.textContent = day;
+        cellFragment.appendChild(dateCell);
+    }
 
-        // Adicionar indicador de "Hoje" junto ao número do dia
-        if (isToday) {
-            const todayIndicator = document.createElement('span');
-            todayIndicator.className = 'today-indicator';
-            todayIndicator.textContent = 'Hoje';
-            dayNumber.appendChild(todayIndicator);
-        }
+    calendarGrid.appendChild(cellFragment);
+    
+    console.log('Renderização concluída');
+    console.groupEnd();
+}
 
-        cellHeader.appendChild(dayNumber);
+// Função para criar célula de data
+function createDateCell(day, today, isCurrentMonth) {
+    const dateCell = document.createElement('div');
+    const formattedDate = formatDate(currentYear, currentMonth, day);
+    const isToday = day === today.getDate() && isCurrentMonth;
+    const isPast = new Date(currentYear, currentMonth, day) < new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    
+    console.log(`Criando célula para ${formattedDate}`, {
+        tarefas: calendarTasks[formattedDate] || []
+    });
+    
+    dateCell.className = `calendar-cell${isToday ? ' calendar-today' : ''}${isPast && isCurrentMonth ? ' calendar-past' : ''}`;
+    dateCell.dataset.date = formattedDate;
+
+    // Criar estrutura interna da célula
+    const cellContent = document.createElement('div');
+    cellContent.className = 'calendar-cell-content';
+
+    // Cabeçalho com número do dia
+    const header = document.createElement('div');
+    header.className = 'calendar-cell-header';
+    
+    const dayNumber = document.createElement('div');
+    dayNumber.className = 'calendar-day-number';
+    dayNumber.textContent = day;
+
+    if (isToday) {
+        const todayIndicator = document.createElement('span');
+        todayIndicator.className = 'today-indicator';
+        todayIndicator.textContent = 'Hoje';
+        dayNumber.appendChild(todayIndicator);
+    }
+
+    header.appendChild(dayNumber);
+    cellContent.appendChild(header);
+
+    // Container de tarefas
+    const tasksContainer = document.createElement('div');
+    tasksContainer.className = 'calendar-tasks-container';
+
+    // Adicionar tarefas
+    const tasksForDay = calendarTasks[formattedDate] || [];
+    if (tasksForDay.length > 0) {
+        console.log(`Adicionando ${tasksForDay.length} tarefas para ${formattedDate}`);
         
-        // Adicionar indicador de tarefas se houver tarefas neste dia
-        const dayTasks = calendarTasks[formattedDate] || [];
-        if (dayTasks.length > 0) {
-            const taskCount = dayTasks.length;
-            const taskIndicator = document.createElement('div');
-            taskIndicator.className = 'calendar-task-indicator';
-            
-            // Verificar status das tarefas para definir a cor do indicador
-            const hasLate = dayTasks.some(task => task.status === 'late');
-            if (hasLate) {
-                taskIndicator.classList.add('has-late');
-            }
-            
-            taskIndicator.innerHTML = `
-                <span>${taskCount}</span>
-                <i class="fas fa-tasks"></i>
-            `;
-            cellHeader.appendChild(taskIndicator);
+        tasksForDay.forEach(task => {
+            const taskElement = createCalendarTask(task);
+            tasksContainer.appendChild(taskElement);
+        });
+
+        if (tasksForDay.length > 3) {
+            const remainingCount = tasksForDay.length - 3;
+            const viewMoreBtn = document.createElement('button');
+            viewMoreBtn.className = 'view-more-tasks';
+            viewMoreBtn.textContent = `+ ${remainingCount} mais`;
+            viewMoreBtn.onclick = (e) => {
+                e.stopPropagation();
+                showAllTasks(formattedDate, tasksForDay);
+            };
+            tasksContainer.appendChild(viewMoreBtn);
         }
-        
-        dateCell.appendChild(cellHeader);
-        
-        // Adicionar container para tarefas
-        const tasksContainer = document.createElement('div');
-        tasksContainer.className = 'calendar-tasks-container';
-        
-        // Adicionar tarefas para esta data
-        if (dayTasks.length > 0) {
-            // Ordenar tarefas: tarefas atrasadas primeiro, depois por status
-            const sortedTasks = [...dayTasks].sort((a, b) => {
-                // Prioriza tarefas atrasadas
-                if (a.status === 'late' && b.status !== 'late') return -1;
-                if (a.status !== 'late' && b.status === 'late') return 1;
-                
-                // Depois, organiza por ordem de status: em andamento, concluído, finalizado
-                const statusOrder = { 'pending': 1, 'completed': 2, 'finished': 3 };
-                return statusOrder[a.status || 'pending'] - statusOrder[b.status || 'pending'];
-            });
-            
-            // Limitar a quantidade de tarefas visíveis inicialmente para performance
-            const maxVisibleTasks = Math.min(5, sortedTasks.length);
-            const hasMoreTasks = sortedTasks.length > maxVisibleTasks;
-            
-            // Adicionar as tarefas visíveis
-            for (let i = 0; i < maxVisibleTasks; i++) {
-                const taskElement = createCalendarTask(sortedTasks[i]);
-                tasksContainer.appendChild(taskElement);
-            }
-            
-            // Se houver mais tarefas que o limite visível, adicionar botão "Ver todas"
-            if (hasMoreTasks) {
-                    tasksContainer.classList.add('has-more');
-                    
-                    // Adicionar botão "Ver todas"
-                    const viewAllBtn = document.createElement('button');
-                    viewAllBtn.className = 'view-all-tasks-btn';
-                viewAllBtn.type = "button";
-                viewAllBtn.innerHTML = `<i class="fas fa-chevron-down"></i> Ver todas ${sortedTasks.length} tarefas`;
-                    
-                // Configurar evento de clique para expandir
-                    viewAllBtn.onclick = function(e) {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        
-                    // Já adicionou as tarefas extras?
-                    const hasExpandedTasks = dateCell.dataset.expanded === 'true';
-                    
-                    if (!hasExpandedTasks) {
-                        // Adicionar as tarefas restantes
-                        for (let i = maxVisibleTasks; i < sortedTasks.length; i++) {
-                            const taskElement = createCalendarTask(sortedTasks[i]);
-                            tasksContainer.appendChild(taskElement);
-                        }
-                        
-                        // Marcar como expandido
-                        dateCell.dataset.expanded = 'true';
-                    }
-                    
-                    // Expandir o contêiner
-                        tasksContainer.style.maxHeight = `${tasksContainer.scrollHeight + 20}px`;
-                        
-                    // Ocultar o botão e adicionar classe de expansão
-                        this.style.display = 'none';
-                        dateCell.classList.add('expanded-cell');
-                        
-                        // Criar botão para fechar a visualização expandida
-                    if (!dateCell.querySelector('.close-expanded-view-btn')) {
-                        const closeViewBtn = document.createElement('button');
-                        closeViewBtn.className = 'close-expanded-view-btn';
-                        closeViewBtn.innerHTML = `<i class="fas fa-chevron-up"></i> Fechar`;
-                        closeViewBtn.type = "button";
-                        
-                        // Adicionar evento para fechar a visualização expandida
-                        closeViewBtn.onclick = function(evt) {
-                            evt.preventDefault();
-                            evt.stopPropagation();
-                            
-                            // Restaurar altura padrão
-                            tasksContainer.style.maxHeight = '';
-                            
-                            // Remover classe de expansão
-                            dateCell.classList.remove('expanded-cell');
-                            
-                            // Mostrar novamente o botão "Ver todas"
-                            viewAllBtn.style.display = 'flex';
-                            
-                            // Remover o botão de fechar
-                            this.remove();
-                        };
-                        
-                        // Adicionar botão de fechar à célula
-                        dateCell.appendChild(closeViewBtn);
-                    }
-                        
-                    return false; // Impedir comportamento padrão
-                    };
-                    
-                    // Inserir botão após o contêiner de tarefas
-                    dateCell.insertBefore(viewAllBtn, tasksContainer.nextSibling);
-                }
-        } else {
-            // Se não houver tarefas, adicionar mensagem vazia mais sutil
-            const emptyTasksPlaceholder = document.createElement('div');
-            emptyTasksPlaceholder.className = 'empty-tasks-placeholder';
-            tasksContainer.appendChild(emptyTasksPlaceholder);
-        }
-        
-        dateCell.appendChild(tasksContainer);
-        
-        // Adicionar evento de clique na célula para abrir o modal de nova tarefa
-        dateCell.addEventListener('click', (e) => {
-            // Não processar o clique se foi em um botão ou em uma tarefa
-            if (e.target.closest('button') || e.target.closest('.calendar-task')) {
-                return;
-            }
-            
-            // Criar hora atual formatada (HH:MM)
-            const now = new Date();
-            const hours = String(now.getHours()).padStart(2, '0');
-            const minutes = String(now.getMinutes()).padStart(2, '0');
-            const currentTime = `${hours}:${minutes}`;
-            
-            // Criar data formatada para o input datetime-local (YYYY-MM-DDTHH:MM)
-            const selectedDate = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}T${currentTime}`;
-            
-            // Adicionar efeito de pulso ao clicar na célula
-            dateCell.classList.add('cell-pulse');
-            setTimeout(() => {
-                dateCell.classList.remove('cell-pulse');
-            }, 500);
-            
-            // Verificar se a função para preparar nova tarefa existe
-            if (typeof prepareNewTask === 'function') {
-            // Preparar para nova tarefa
-            prepareNewTask();
-            
-            // Preencher o campo de data de início
-            setTimeout(() => {
-                const taskStartDate = document.getElementById('task-start-date');
-                if (taskStartDate) {
-                    taskStartDate.value = selectedDate;
-                    
-                    // Disparar evento change para atualizar validação
-                    const changeEvent = new Event('change');
-                    taskStartDate.dispatchEvent(changeEvent);
-                }
-            }, 100);
-            } else {
-                console.error('Função prepareNewTask não encontrada');
+    }
+
+    cellContent.appendChild(tasksContainer);
+    dateCell.appendChild(cellContent);
+
+    // Adicionar evento de clique
+    dateCell.addEventListener('click', handleCellClick);
+
+    return dateCell;
+}
+
+// Função auxiliar para mostrar todas as tarefas
+function showAllTasks(date, tasks) {
+    console.log(`Mostrando todas as ${tasks.length} tarefas para ${date}`);
+    // Implementação do modal ou expansão da célula para mostrar todas as tarefas
+}
+
+// Handlers de eventos
+function handleCellClick(e) {
+    if (e.target.closest('button') || e.target.closest('.calendar-task')) return;
+    
+    const cell = e.currentTarget;
+    cell.classList.add('cell-pulse');
+    setTimeout(() => cell.classList.remove('cell-pulse'), 500);
+
+    if (typeof prepareNewTask === 'function') {
+        const date = cell.dataset.date;
+        prepareNewTask(date);
+    }
+}
+
+function handleViewAllClick(e) {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const btn = e.currentTarget;
+    const container = btn.closest('.calendar-tasks-container');
+    const cell = container.closest('.calendar-cell');
+
+    container.style.maxHeight = `${container.scrollHeight + 20}px`;
+    btn.style.display = 'none';
+    cell.classList.add('expanded-cell');
+
+    const closeBtn = createCloseButton(btn, container, cell);
+    cell.appendChild(closeBtn);
+}
+
+// Funções utilitárias
+function formatDate(year, month, day) {
+    return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
+
+function showCalendarError(message) {
+    const errorElement = document.createElement('div');
+    errorElement.className = 'calendar-error';
+    errorElement.textContent = message;
+    DOM.calendarGrid?.appendChild(errorElement);
+}
+
+// Inicialização
+document.addEventListener('DOMContentLoaded', () => {
+    const calendarView = document.getElementById('calendario-view');
+    if (!calendarView) return;
+
+    console.group('[Calendar] Configurando observador do calendário');
+    debugCalendarState();
+
+    const observer = new MutationObserver((mutations) => {
+        mutations.forEach((mutation) => {
+            if (mutation.target.id === 'calendario-view' && 
+                mutation.target.style.display !== 'none' && 
+                mutation.attributeName === 'style') {
+                console.log('[Calendar] Mudança detectada na visibilidade do calendário');
+                calendarTasks = {};
+                initCalendar();
             }
         });
-        
-        // Adicionar a célula ao fragmento
-        fragment.appendChild(dateCell);
+    });
+
+    observer.observe(calendarView, { attributes: true });
+    console.log('[Calendar] Observador configurado');
+
+    if (calendarView.style.display !== 'none') {
+        console.log('[Calendar] Calendário visível, iniciando...');
+        initCalendar();
     }
     
-    // Adicionar o fragmento ao grid (operação mais eficiente)
-    calendarGrid.appendChild(fragment);
-    
-    // Adicionar listener para redimensionamento da janela
-    window.removeEventListener('resize', handleCalendarResize);
-    window.addEventListener('resize', handleCalendarResize);
-    
-    // Animar entrada das células do calendário
-    const cells = document.querySelectorAll('.calendar-cell');
-    cells.forEach((cell, index) => {
-        // Usar um atraso proporcional ao índice, mas limitado para não demorar muito
-        const delay = Math.min(index * 0.02, 0.5);
-        cell.style.animationDelay = `${delay}s`;
-    });
-    
-    // Dispara evento personalizado indicando que o calendário foi renderizado
-    document.dispatchEvent(new CustomEvent('calendar-rendered'));
-}
-
-// Função para lidar com redimensionamento da janela
-function handleCalendarResize() {
-    // Ajustar alturas dos contêineres de tarefas
-    const taskContainers = document.querySelectorAll('.calendar-tasks-container');
-    taskContainers.forEach(container => {
-        // Remover altura máxima personalizada
-        if (!container.closest('.expanded-cell')) {
-            container.style.maxHeight = '';
-        }
-        
-        // Verificar se precisa da classe has-more
-        const isContainerOverflowing = container.scrollHeight > container.clientHeight;
-        container.classList.toggle('has-more', isContainerOverflowing);
-        
-        // Verificar botão "Ver todas" apenas se necessário
-        if (isContainerOverflowing) {
-            const cell = container.closest('.calendar-cell');
-            const viewAllBtn = cell.querySelector('.view-all-tasks-btn');
-            
-            if (!viewAllBtn && !cell.classList.contains('expanded-cell')) {
-                // Tentar encontrar quantas tarefas existem
-                const tasks = container.querySelectorAll('.calendar-task');
-                if (tasks.length > 0) {
-                    const newViewAllBtn = document.createElement('button');
-                    newViewAllBtn.className = 'view-all-tasks-btn';
-                    newViewAllBtn.innerHTML = `<i class="fas fa-chevron-down"></i> Ver todas ${tasks.length} tarefas`;
-                    newViewAllBtn.type = "button";
-                    cell.insertBefore(newViewAllBtn, container.nextSibling);
-                }
-            }
-        }
-    });
-}
+    console.groupEnd();
+});
 
 // Função para mostrar pop-up detalhado ao passar o mouse sobre uma tarefa
 function showTaskPopup(event, task) {
@@ -934,7 +1044,7 @@ function showTaskPopup(event, task) {
             // Atualizar o status
             if (newStatus && typeof updateTaskStatus === 'function') {
                 updateTaskStatus(task.id, newStatus);
-                showInfoNotification(`Tarefa "${task.text}" atualizada para "${statusLabels[newStatus]}"`);
+                showInfoNotification(`Tarefa "${task.text}" atualizada para "${STATUS_LABELS[newStatus]}"`);
             }
         });
     }
@@ -1016,322 +1126,168 @@ function hideTaskTooltip(tooltip) {
 
 // Função para atualizar o status de uma tarefa no calendário
 function updateCalendarTaskStatus(taskId, newStatus) {
-    console.log(`Atualizando status da tarefa ${taskId} para ${newStatus} no calendário...`);
-    
-    // Variável para verificar se precisamos fazer uma renderização completa
-    let needCompleteRender = false;
+    console.log(`[Calendar] Iniciando atualização de status: ${taskId} -> ${newStatus}`);
     
     try {
-        // Primeiro, localizar todas as ocorrências da tarefa no DOM
-        const taskElements = document.querySelectorAll(`.calendar-task[data-task-id="${taskId}"]`);
-        console.log(`Encontradas ${taskElements.length} ocorrências da tarefa no calendário`);
-        
-        if (taskElements.length === 0) {
-            // A tarefa pode não estar visível no mês atual, apenas atualizar o objeto de dados
-            needCompleteRender = true;
-        } else {
-            // Verificar se precisamos de uma renderização completa
-            needCompleteRender = needsFullRender(taskId, newStatus);
+        let taskUpdated = false;
+        let needsRerender = false;
+
+        // Atualizar nos dados do calendário
+        Object.keys(calendarTasks).forEach(date => {
+            const tasks = calendarTasks[date];
+            const taskIndex = tasks.findIndex(t => t.id === taskId);
             
-            // Atualizar cada ocorrência da tarefa no DOM
-            taskElements.forEach(taskEl => {
-                // Remover classes de status anteriores
-                taskEl.classList.remove('status-pending', 'status-completed', 'status-finished', 'status-late');
+            if (taskIndex !== -1) {
+                const oldStatus = tasks[taskIndex].status;
+                tasks[taskIndex].status = newStatus;
+                taskUpdated = true;
                 
-                // Adicionar nova classe de status
+                console.log(`[Calendar] Tarefa atualizada em ${date}: ${oldStatus} -> ${newStatus}`);
+                
+                // Verificar se precisa re-renderizar
+                needsRerender = needsRerender || 
+                    oldStatus === 'late' || 
+                    newStatus === 'late' || 
+                    tasks.length === 1;
+            }
+        });
+
+        if (taskUpdated) {
+            // Atualizar cache local
+            localStorage.setItem('calendar_tasks', JSON.stringify(calendarTasks));
+            
+            // Atualizar visualmente
+            const taskElements = document.querySelectorAll(`.calendar-task[data-task-id="${taskId}"]`);
+            console.log(`[Calendar] Atualizando ${taskElements.length} elementos visuais`);
+            
+            taskElements.forEach(taskEl => {
+                // Atualizar classes de status
+                const oldClasses = Array.from(taskEl.classList)
+                    .filter(cls => cls.startsWith('status-'));
+                oldClasses.forEach(cls => taskEl.classList.remove(cls));
                 taskEl.classList.add(`status-${newStatus}`);
                 
-                // Atualizar o atributo de dados
+                // Atualizar atributos de dados
                 taskEl.dataset.taskStatus = newStatus;
                 
-                // Atualizar o ícone de status
-                const statusIconEl = taskEl.querySelector('.task-status-icon');
-                if (statusIconEl) {
-                    const statusIcons = {
+                // Atualizar ícone
+                const statusIcon = taskEl.querySelector('.task-status-icon');
+                if (statusIcon) {
+                    const icons = {
                         'pending': '<i class="fas fa-clock"></i>',
                         'completed': '<i class="fas fa-check"></i>',
                         'finished': '<i class="fas fa-flag-checkered"></i>',
                         'late': '<i class="fas fa-exclamation-triangle"></i>'
                     };
-                    
-                    statusIconEl.innerHTML = statusIcons[newStatus] || statusIcons.pending;
+                    statusIcon.innerHTML = icons[newStatus] || icons.pending;
                 }
+                
+                // Adicionar animação de atualização
+                taskEl.classList.add('task-updated');
+                setTimeout(() => taskEl.classList.remove('task-updated'), 1000);
             });
-        }
-        
-        // Atualizar o status no objeto de dados do calendário
-        let updated = false;
-        
-        Object.keys(calendarTasks).forEach(date => {
-            const tasksForDate = calendarTasks[date];
             
-            for (let i = 0; i < tasksForDate.length; i++) {
-                if (tasksForDate[i].id === taskId) {
-                    console.log(`Tarefa encontrada em ${date}, atualizando status de ${tasksForDate[i].status} para ${newStatus}`);
-                    
-                    // Armazenar status anterior para verificar mudança
-                    const oldStatus = tasksForDate[i].status;
-                    
-                    // Atualizar status
-                    tasksForDate[i].status = newStatus;
-                    updated = true;
-                    
-                    // Atualizar tarefas globais, se disponíveis
-                    if (window.tasks) {
-                        // Iterar por todas as categorias e atualizar tarefas correspondentes
-                        Object.keys(window.tasks).forEach(category => {
-                            if (Array.isArray(window.tasks[category])) {
-                                window.tasks[category].forEach(task => {
-                                    if (task.id === taskId) {
-                                        console.log(`Atualizando tarefa global em ${category}`);
-                                        task.status = newStatus;
-                                    }
-                                });
-                            }
-                        });
-                    }
-                    
-                    // Verificar se esta mudança requer uma re-renderização completa
-                    // Por exemplo, se mudar de "em andamento" para "atrasado"
-                    // Ou se mudar de "atrasado" para qualquer outro status
-                    if ((oldStatus === 'late' && newStatus !== 'late') || 
-                        (oldStatus !== 'late' && newStatus === 'late')) {
-                        needCompleteRender = true;
-                    }
-                }
+            // Se necessário, re-renderizar o calendário
+            if (needsRerender) {
+                console.log('[Calendar] Re-renderizando calendário');
+                renderCalendar();
             }
-        });
-        
-        if (!updated) {
-            console.warn(`Tarefa ${taskId} não encontrada nos dados do calendário`);
+            
+            // Disparar evento de atualização
+            const event = new CustomEvent('calendarTaskUpdated', {
+                detail: { taskId, newStatus }
+            });
+            window.dispatchEvent(event);
+            
+            console.log('[Calendar] Atualização concluída com sucesso');
+            return true;
+        } else {
+            console.warn('[Calendar] Tarefa não encontrada no calendário');
+            return false;
         }
-        
-        // Se for necessária uma renderização completa
-        if (needCompleteRender) {
-            console.log('Necessária renderização completa do calendário...');
-            renderCalendar();
-        }
-        
-        return true;
     } catch (error) {
-        console.error('Erro ao atualizar status da tarefa no calendário:', error);
+        console.error('[Calendar] Erro ao atualizar status:', error);
         return false;
     }
 }
 
-// Função para determinar se precisamos renderizar o calendário completamente
-function needsFullRender(taskId, newStatus) {
-    // Verificar situações específicas, como quando um dia tem apenas uma tarefa
-    // e essa tarefa está mudando de status (afeta o indicador de dia)
-    let needsRender = false;
-    
-    Object.keys(calendarTasks).forEach(dateKey => {
-        const dateTasks = calendarTasks[dateKey];
-        // Se for a única tarefa do dia ou se estiver mudando para/de 'late' (que muda o indicador)
-        if ((dateTasks.length === 1 && dateTasks[0].id === taskId) || 
-            (dateTasks.some(t => t.id === taskId) && 
-             (newStatus === 'late' || dateTasks.find(t => t.id === taskId).status === 'late'))) {
-            needsRender = true;
-        }
-    });
-    
-    return needsRender;
-}
-
-// Função para carregar tarefas no calendário
-async function loadCalendarTasks() {
+// Função para integrar com o sistema de KPI
+function integrateWithKPI() {
     try {
-        console.log('Carregando tarefas para o calendário...');
+        console.log('[Calendar] Iniciando integração com KPI');
         
-        // Mostrar um indicador de carregamento no calendário
-        showCalendarLoadingIndicator();
-        
-        // Limpar todas as tarefas do calendário antes de adicionar novamente
-        calendarTasks = {};
-        
-        let tasks;
-        
-        // Verificar primeiro se temos tarefas armazenadas do dashboard
-        if (storedTasksFromDashboard) {
-            console.log('Usando tarefas armazenadas do dashboard');
-            tasks = storedTasksFromDashboard;
-            // Limpar para a próxima vez
-            storedTasksFromDashboard = null;
-        }
-        // Tentar obter tarefas do Supabase
-        else if (typeof fetchTasks === 'function') {
-            try {
-                console.log('Buscando tarefas do Supabase...');
-                tasks = await fetchTasks();
-            } catch (error) {
-                console.warn('Erro ao buscar tarefas do Supabase:', error);
-                tasks = null;
-            }
-        }
-        
-        // Se não conseguiu do Supabase, usar window.tasks
-        if (!tasks && window.tasks) {
-            console.log('Usando tarefas da memória (window.tasks)');
-            tasks = window.tasks;
-        }
-        
-        // Se ainda não tiver tarefas, criar objeto vazio
-        if (!tasks) {
-            console.warn('Nenhuma tarefa disponível para o calendário');
-            tasks = { day: [], week: [], month: [], year: [] };
-        }
-        
-        // Verificar se tasks está vazio, o que pode indicar que window.tasks ainda não foi carregado
-        let isEmpty = true;
-        Object.keys(tasks).forEach(category => {
-            if (Array.isArray(tasks[category]) && tasks[category].length > 0) {
-                isEmpty = false;
+        // Registrar no evento global de atualização de status
+        window.addEventListener('taskStatusUpdated', function(event) {
+            if (event.detail) {
+                const { taskId, newStatus } = event.detail;
+                console.log('[Calendar] Evento de atualização de status recebido:', taskId, newStatus);
+                updateCalendarTaskStatus(taskId, newStatus);
             }
         });
-        
-        if (isEmpty && !window.calendarRetryCount) {
-            // Configurar contador de tentativas
-            window.calendarRetryCount = 0;
-        }
-        
-        // Se está vazio e ainda não excedeu o número máximo de tentativas, tentar novamente
-        if (isEmpty && window.calendarRetryCount < 3) {
-            window.calendarRetryCount++;
-            console.log(`Tarefas vazias no calendário, tentando novamente (${window.calendarRetryCount}/3)...`);
-            
-            // Remover o indicador de carregamento
-            hideCalendarLoadingIndicator();
-            
-            // Tentar novamente após um pequeno atraso
-            return new Promise((resolve) => {
-                setTimeout(async () => {
-                    try {
-                        const result = await loadCalendarTasks();
-                        resolve(result);
-                    } catch (err) {
-                        console.error('Erro na tentativa de recarga do calendário:', err);
-                        resolve(false);
-                    }
-                }, 1000); // Esperar 1 segundo antes de tentar novamente
-            });
-        }
-        
-        // Resetar o contador de tentativas
-        window.calendarRetryCount = 0;
-        
-        // Contar quantas tarefas estão disponíveis
-        let totalTasks = 0;
-        
-        // Criar conjunto para rastrear IDs já processados e evitar duplicação
-        const processedTaskIds = new Set();
-        
-        // Primeiro, filtrar tarefas duplicadas em cada categoria
-        Object.keys(tasks).forEach(category => {
-            if (Array.isArray(tasks[category])) {
-                // Identificar e remover duplicatas na mesma categoria
-                const uniqueTasks = [];
-                const categoryProcessedIds = new Set();
-                
-                for (const task of tasks[category]) {
-                    if (!task.id) {
-                        console.warn('Tarefa sem ID encontrada, gerando ID automático');
-                        task.id = 'task_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
-                    }
-                    
-                    if (!categoryProcessedIds.has(task.id)) {
-                        categoryProcessedIds.add(task.id);
-                        uniqueTasks.push(task);
-                    } else {
-                        console.warn(`Tarefa duplicada removida na categoria ${category}: ${task.id}`);
-                    }
-                }
-                
-                // Substituir array original com versão sem duplicatas
-                if (tasks[category].length !== uniqueTasks.length) {
-                    console.log(`Removidas ${tasks[category].length - uniqueTasks.length} duplicatas em ${category}`);
-                    tasks[category] = uniqueTasks;
-                }
-                
-                totalTasks += tasks[category].length;
+
+        // Registrar no KPIManager se disponível
+        if (typeof window.KPIManager === 'object' && window.KPIManager !== null) {
+            console.log('[Calendar] KPIManager encontrado, registrando listener');
+            if (typeof window.KPIManager.on === 'function') {
+                window.KPIManager.on('statusChanged', (taskId, newStatus) => {
+                    console.log('[Calendar] KPIManager notificou mudança:', taskId, newStatus);
+                    updateCalendarTaskStatus(taskId, newStatus);
+                });
             }
-        });
-        
-        // Processar cada categoria de tarefas para o calendário
-        Object.keys(tasks).forEach(category => {
-            if (Array.isArray(tasks[category])) {
-                tasks[category].forEach(task => {
-                    // Verificar se a tarefa já foi processada em qualquer categoria
-                    if (processedTaskIds.has(task.id)) {
-                        console.warn(`Tarefa duplicada entre categorias detectada e ignorada: ${task.id}`);
-                        return;
-                    }
-                    
-                    // Marcar como processada
-                    processedTaskIds.add(task.id);
-                    
-                    // Usar a data de início da tarefa como data do calendário
-                    if (!task.startDate) {
-                        console.warn('Tarefa sem data de início:', task);
-                        return;
-                    }
-                    
-                    try {
-                        const startDate = new Date(task.startDate);
-                        
-                        if (isNaN(startDate.getTime())) {
-                            console.warn('Data de início inválida:', task.startDate);
-                            return;
-                        }
-                        
-                        // Formato da data: YYYY-MM-DD
-                        const formattedDate = startDate.toISOString().split('T')[0];
-                        
-                        if (!calendarTasks[formattedDate]) {
-                            calendarTasks[formattedDate] = [];
-                        }
-                        
-                        // Verificar se a tarefa já existe na data específica
-                        const exists = calendarTasks[formattedDate].some(t => t.id === task.id);
-                        if (!exists) {
-                            calendarTasks[formattedDate].push(task);
-                        } else {
-                            console.warn(`Tarefa duplicada para a data ${formattedDate}: ${task.id}`);
-                        }
-                    } catch (error) {
-                        console.error('Erro ao processar data da tarefa:', error);
+            
+            if (typeof window.KPIManager.subscribe === 'function') {
+                window.KPIManager.subscribe('taskUpdate', (data) => {
+                    console.log('[Calendar] KPIManager notificou atualização:', data);
+                    if (data.taskId && data.status) {
+                        updateCalendarTaskStatus(data.taskId, data.status);
                     }
                 });
             }
-        });
-        
-        console.log(`Calendário carregado com ${totalTasks} tarefas, ${processedTaskIds.size} únicas`);
-        
-        // Se houve correção de duplicatas, salvar as tarefas corrigidas
-        if (totalTasks !== processedTaskIds.size && window.tasks) {
-            console.log('Salvando tarefas corrigidas no localStorage...');
-            try {
-                localStorage.setItem('tasks', JSON.stringify(tasks));
-                console.log('Tarefas corrigidas salvas com sucesso');
-            } catch (e) {
-                console.error('Erro ao salvar tarefas corrigidas:', e);
+        }
+
+        // Registrar no StatusManager para redundância
+        if (window.StatusManager) {
+            console.log('[Calendar] StatusManager encontrado, registrando handler');
+            if (typeof window.StatusManager.registerStatusChangeHandler === 'function') {
+                window.StatusManager.registerStatusChangeHandler('calendar', (taskId, newStatus) => {
+                    console.log('[Calendar] StatusManager notificou mudança:', taskId, newStatus);
+                    updateCalendarTaskStatus(taskId, newStatus);
+                });
+            }
+            
+            if (typeof window.StatusManager.on === 'function') {
+                window.StatusManager.on('statusChange', (data) => {
+                    console.log('[Calendar] StatusManager evento recebido:', data);
+                    if (data.taskId && data.status) {
+                        updateCalendarTaskStatus(data.taskId, data.status);
+                    }
+                });
             }
         }
-        
-        // Renderizar calendário com as tarefas
-        renderCalendar();
-        
-        // Remover o indicador de carregamento
-        hideCalendarLoadingIndicator();
-        
-        return true;
+
+        // Observar mudanças diretas no DOM
+        const taskElements = document.querySelectorAll('.calendar-task');
+        taskElements.forEach(taskEl => {
+            const observer = new MutationObserver((mutations) => {
+                mutations.forEach((mutation) => {
+                    if (mutation.type === 'attributes' && mutation.attributeName === 'data-status') {
+                        const taskId = taskEl.dataset.taskId;
+                        const newStatus = taskEl.dataset.status;
+                        console.log('[Calendar] Mudança detectada no DOM:', taskId, newStatus);
+                        updateCalendarTaskStatus(taskId, newStatus);
+                    }
+                });
+            });
+            
+            observer.observe(taskEl, {
+                attributes: true,
+                attributeFilter: ['data-status']
+            });
+        });
+
+        console.log('[Calendar] Integração com KPI concluída');
     } catch (error) {
-        console.error('Erro ao carregar tarefas para o calendário:', error);
-        hideCalendarLoadingIndicator();
-        
-        // Mostrar mensagem de erro no calendário
-        showCalendarError('Não foi possível carregar as tarefas. Tente novamente.');
-        
-        return false;
+        console.error('[Calendar] Erro ao integrar com KPI:', error);
     }
 }
 
@@ -1405,40 +1361,6 @@ function hideCalendarLoadingIndicator() {
     }
 }
 
-// Função para mostrar mensagem de erro no calendário
-function showCalendarError(message) {
-    const calendarGrid = document.getElementById('calendar-grid');
-    if (!calendarGrid) return;
-    
-    // Remover erro anterior se existir
-    const existingError = document.getElementById('calendar-error-message');
-    if (existingError) existingError.remove();
-    
-    // Criar mensagem de erro
-    const errorElement = document.createElement('div');
-    errorElement.id = 'calendar-error-message';
-    errorElement.className = 'calendar-loading-indicator calendar-error';
-    errorElement.innerHTML = `
-        <i class="fas fa-exclamation-circle" style="font-size: 24px; margin-bottom: 10px;"></i>
-        <p>${message}</p>
-        <button id="retry-calendar-load" class="filter-button select-all" style="margin-top: 10px;">
-            <i class="fas fa-sync-alt"></i> Tentar Novamente
-        </button>
-    `;
-    
-    // Adicionar ao grid do calendário
-    calendarGrid.appendChild(errorElement);
-    
-    // Adicionar listener para o botão de tentar novamente
-    const retryButton = document.getElementById('retry-calendar-load');
-    if (retryButton) {
-        retryButton.addEventListener('click', () => {
-            errorElement.remove();
-            loadCalendarTasks();
-        });
-    }
-}
-
 // Função para configurar os event listeners dos botões de navegação
 function setupNavigationListeners() {
     // Event listeners para botões de ícone nos controles do calendário
@@ -1458,61 +1380,79 @@ function setupNavigationListeners() {
     }
 }
 
-// Escutar eventos de navegação para a página de calendário
-document.addEventListener('DOMContentLoaded', () => {
-    // Verificar se estamos na página de calendário
-    const calendarView = document.getElementById('calendario-view');
+// Função para navegar entre os meses
+function navigateMonth(direction) {
+    currentMonth += direction;
     
-    // Configurar um observer para detectar quando o calendário se torna visível
-    calendarObserver = new MutationObserver((mutations) => {
-        mutations.forEach((mutation) => {
-            if (mutation.target.id === 'calendario-view' && 
-                mutation.target.style.display !== 'none' && 
-                mutation.attributeName === 'style') {
-                console.log('Calendário se tornou visível, iniciando...');
-                
-                // Limpar quaisquer tarefas antigas e recarregar
-                calendarTasks = {};
-                
-                // Inicializar o calendário quando se tornar visível
-                initCalendar();
-            }
-        });
-    });
-    
-    // Iniciar o observer para monitorar o elemento do calendário
-    if (calendarView) {
-        calendarObserver.observe(calendarView, { attributes: true });
-        
-        // Se o calendário já estiver visível, inicialize-o
-        if (calendarView.style.display !== 'none') {
-            console.log('Calendário já está visível, iniciando...');
-            initCalendar();
-        }
+    if (currentMonth > 11) {
+        currentMonth = 0;
+        currentYear++;
+    } else if (currentMonth < 0) {
+        currentMonth = 11;
+        currentYear--;
     }
     
-    // Adicionar listener global para eventos de status
-    document.addEventListener('status-change', function(e) {
-        if (e.detail && e.detail.taskId && e.detail.newStatus) {
-            console.log('Evento status-change recebido no calendário:', e.detail);
-            
-            // Atualizar o status da tarefa no calendário
-            updateCalendarTaskStatus(e.detail.taskId, e.detail.newStatus);
-        }
-    });
-});
+    renderCalendar();
+}
 
 // Função para integrar o calendário com o TaskStatusManager global
 function integrateWithTaskStatusManager() {
-    // Verificar se o TaskStatusManager global está disponível
-    if (window.StatusManager) {
-        console.log('Integrando calendário com o TaskStatusManager...');
+    try {
+        // Verificar se o StatusManager global está disponível e é válido
+        if (typeof window.StatusManager === 'object' && 
+            window.StatusManager !== null && 
+            typeof window.StatusManager.registerStatusChangeHandler === 'function') {
+            
+            console.log('Integrando calendário com o TaskStatusManager...');
+            
+            // Registrar listener para eventos de mudança de status
+            window.StatusManager.registerStatusChangeHandler('calendar', (taskId, newStatus) => {
+                console.log(`StatusManager notificou alteração para tarefa ${taskId}: ${newStatus}`);
+                updateCalendarTaskStatus(taskId, newStatus);
+            });
+        } else {
+            console.warn('StatusManager não está disponível ou não está completamente inicializado');
+            
+            // Criar um StatusManager básico se não existir
+            if (!window.StatusManager) {
+                window.StatusManager = {
+                    handlers: {},
+                    registerStatusChangeHandler: function(id, handler) {
+                        this.handlers[id] = handler;
+                    },
+                    notifyStatusChange: function(taskId, newStatus) {
+                        Object.values(this.handlers).forEach(handler => {
+                            try {
+                                handler(taskId, newStatus);
+                            } catch (error) {
+                                console.error('Erro ao executar handler:', error);
+                            }
+                        });
+                    }
+                };
+                console.log('StatusManager básico criado para fallback');
+            }
+        }
+    } catch (error) {
+        console.error('Erro ao integrar com StatusManager:', error);
+    }
+}
+
+// Função para atualizar o status de uma tarefa
+function updateTaskStatus(taskId, newStatus) {
+    try {
+        // Atualizar o status no calendário
+        const updated = updateCalendarTaskStatus(taskId, newStatus);
         
-        // Registrar listener para eventos de mudança de status
-        window.StatusManager.registerStatusChangeHandler('calendar', (taskId, newStatus) => {
-            console.log(`StatusManager notificou alteração para tarefa ${taskId}: ${newStatus}`);
-            updateCalendarTaskStatus(taskId, newStatus);
-        });
+        // Notificar outros componentes através do StatusManager se disponível
+        if (window.StatusManager && typeof window.StatusManager.notifyStatusChange === 'function') {
+            window.StatusManager.notifyStatusChange(taskId, newStatus);
+        }
+        
+        return updated;
+    } catch (error) {
+        console.error('Erro ao atualizar status da tarefa:', error);
+        return false;
     }
 }
 
@@ -1672,3 +1612,144 @@ function getStatusText(status) {
     
     return statusTexts[status] || 'Desconhecido';
 }
+
+// Função para atualização instantânea do calendário
+function setupInstantUpdates() {
+    console.log('[Calendar] Configurando atualizações instantâneas');
+    
+    // Observer para mudanças no estado global de tarefas
+    if (window.tasks) {
+        const tasksProxy = new Proxy(window.tasks, {
+            set: function(target, property, value) {
+                target[property] = value;
+                CalendarObserver.notify('tasks-updated', { category: property });
+                return true;
+            }
+        });
+        window.tasks = tasksProxy;
+    }
+    
+    // Observar mudanças no KPI
+    if (typeof window.KPIManager === 'object' && window.KPIManager !== null) {
+        window.KPIManager.registerStatusChangeListener((taskId, newStatus) => {
+            CalendarObserver.notify('status-changed', { taskId, newStatus });
+        });
+    }
+    
+    // Observar mudanças no StatusManager
+    if (window.StatusManager && typeof window.StatusManager.registerStatusChangeHandler === 'function') {
+        window.StatusManager.registerStatusChangeHandler('calendar-instant', (taskId, newStatus) => {
+            CalendarObserver.notify('status-changed', { taskId, newStatus });
+        });
+    }
+    
+    // Registrar callback para atualizações
+    CalendarObserver.subscribe((changeType, data) => {
+        console.log(`[Calendar] Processando atualização: ${changeType}`, data);
+        
+        switch (changeType) {
+            case 'status-changed':
+                updateCalendarTaskStatus(data.taskId, data.newStatus);
+                break;
+                
+            case 'tasks-updated':
+                refreshCalendarTasks();
+                break;
+                
+            case 'task-added':
+            case 'task-deleted':
+                refreshCalendarTasks();
+                break;
+        }
+    });
+}
+
+// Função para atualizar tarefas do calendário
+async function refreshCalendarTasks() {
+    console.log('[Calendar] Atualizando tarefas do calendário');
+    
+    try {
+        // Salvar scroll atual
+        const grid = document.getElementById('calendar-grid');
+        const scrollPos = grid ? { top: grid.scrollTop, left: grid.scrollLeft } : null;
+        
+        // Recarregar tarefas
+        await loadCalendarTasks();
+        
+        // Renderizar calendário
+        renderCalendar();
+        
+        // Restaurar posição do scroll
+        if (scrollPos && grid) {
+            grid.scrollTop = scrollPos.top;
+            grid.scrollLeft = scrollPos.left;
+        }
+        
+        console.log('[Calendar] Atualização concluída');
+    } catch (error) {
+        console.error('[Calendar] Erro ao atualizar calendário:', error);
+    }
+}
+
+// Função para integrar com o sistema de sincronização global
+function setupGlobalSyncIntegration() {
+    if (!window.GlobalSync) {
+        console.error('[Calendar] Sistema de sincronização global não encontrado');
+        return;
+    }
+
+    console.log('[Calendar] Configurando integração com sistema de sincronização global');
+
+    // Registrar para atualizações de status
+    window.GlobalSync.on('status-change', ({ taskId, newStatus }) => {
+        console.log('[Calendar] Recebida atualização de status do GlobalSync:', taskId, newStatus);
+        updateCalendarTaskStatus(taskId, newStatus);
+    });
+
+    // Registrar para atualizações de dados
+    window.GlobalSync.on('data-update', (change) => {
+        console.log('[Calendar] Recebida atualização de dados do GlobalSync:', change);
+        refreshCalendarTasks();
+    });
+
+    // Registrar para erros
+    window.GlobalSync.on('error', (error) => {
+        console.error('[Calendar] Erro reportado pelo GlobalSync:', error);
+        showCalendarError('Erro ao sincronizar dados. Tentando novamente...');
+    });
+}
+
+// Função para atualizar o calendário quando houver mudanças
+function handleTasksUpdate(event) {
+    console.group('[Calendar] Atualizando calendário');
+    
+    try {
+        if (event.detail && event.detail.tasksByDate) {
+            console.log('Recebidas novas tarefas por data:', event.detail.tasksByDate);
+            calendarTasks = event.detail.tasksByDate;
+            renderCalendar();
+        } else if (event.detail && event.detail.tasks) {
+            console.log('Processando tarefas recebidas');
+            calendarTasks = {};
+            Object.values(event.detail.tasks).flat().forEach(task => {
+                if (task.startDate) {
+                    const dateKey = task.startDate.split('T')[0];
+                    if (!calendarTasks[dateKey]) {
+                        calendarTasks[dateKey] = [];
+                    }
+                    calendarTasks[dateKey].push(task);
+                }
+            });
+            renderCalendar();
+        }
+        
+        console.log('Calendário atualizado com sucesso');
+    } catch (error) {
+        console.error('Erro ao atualizar calendário:', error);
+    }
+    
+    console.groupEnd();
+}
+
+// Registrar listener para atualizações
+window.addEventListener('tasksUpdated', handleTasksUpdate);
