@@ -440,21 +440,27 @@ function createDateCell(day, today, isCurrentMonth) {
     if (tasksForDay.length > 0) {
         console.log(`Adicionando ${tasksForDay.length} tarefas para ${formattedDate}`);
         
-        tasksForDay.forEach(task => {
+        // Mostrar apenas 3 tarefas inicialmente
+        const visibleTasks = tasksForDay.slice(0, 3);
+        const hiddenTasks = tasksForDay.slice(3);
+        
+        visibleTasks.forEach(task => {
             const taskElement = createCalendarTask(task);
             tasksContainer.appendChild(taskElement);
         });
 
-        if (tasksForDay.length > 3) {
-            const remainingCount = tasksForDay.length - 3;
+        if (hiddenTasks.length > 0) {
             const viewMoreBtn = document.createElement('button');
             viewMoreBtn.className = 'view-more-tasks';
-            viewMoreBtn.textContent = `+ ${remainingCount} mais`;
+            viewMoreBtn.textContent = `+ ${hiddenTasks.length} mais`;
             viewMoreBtn.onclick = (e) => {
                 e.stopPropagation();
-                showAllTasks(formattedDate, tasksForDay);
+                showAllTasks(dateCell, formattedDate, tasksForDay);
             };
             tasksContainer.appendChild(viewMoreBtn);
+            
+            // Armazenar as tarefas ocultas como atributo de dados no botão
+            viewMoreBtn.dataset.hiddenTasks = JSON.stringify(hiddenTasks.map(t => t.id));
         }
     }
 
@@ -468,9 +474,52 @@ function createDateCell(day, today, isCurrentMonth) {
 }
 
 // Função auxiliar para mostrar todas as tarefas
-function showAllTasks(date, tasks) {
+function showAllTasks(cell, date, tasks) {
     console.log(`Mostrando todas as ${tasks.length} tarefas para ${date}`);
-    // Implementação do modal ou expansão da célula para mostrar todas as tarefas
+    
+    // Obter o container de tarefas
+    const tasksContainer = cell.querySelector('.calendar-tasks-container');
+    if (!tasksContainer) return;
+    
+    // Remover o botão "mais"
+    const moreButton = tasksContainer.querySelector('.view-more-tasks');
+    if (moreButton) {
+        moreButton.remove();
+    }
+    
+    // Limpar o container
+    tasksContainer.innerHTML = '';
+    
+    // Adicionar todas as tarefas
+    tasks.forEach(task => {
+        const taskElement = createCalendarTask(task);
+        tasksContainer.appendChild(taskElement);
+    });
+    
+    // Adicionar botão para fechar/minimizar
+    const closeBtn = document.createElement('button');
+    closeBtn.className = 'close-expanded-view';
+    closeBtn.innerHTML = '<i class="fas fa-chevron-up"></i> Minimizar';
+    closeBtn.onclick = (e) => {
+        e.stopPropagation();
+        // Recriar a célula normal com apenas 3 tarefas visíveis
+        const day = parseInt(date.split('-')[2]);
+        const today = new Date();
+        const isCurrentMonth = true;
+        const newCell = createDateCell(day, today, isCurrentMonth);
+        
+        // Substituir a célula atual pela nova
+        cell.parentNode.replaceChild(newCell, cell);
+    };
+    
+    // Adicionar o botão ao final do container
+    tasksContainer.appendChild(closeBtn);
+    
+    // Expandir o container
+    tasksContainer.style.maxHeight = `${tasksContainer.scrollHeight + 20}px`;
+    
+    // Marcar a célula como expandida
+    cell.classList.add('expanded-cell');
 }
 
 // Handlers de eventos

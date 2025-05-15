@@ -76,10 +76,6 @@
     color: #ef4444;
 }
 
-.filter-option[for="filter-finished"] .filter-label i {
-    color: #8b5cf6;
-}
-
 /* Estado selecionado para cada filtro */
 .filter-option[for="filter-pending"] input:checked + .filter-label {
     background-color: rgba(251, 191, 36, 0.15);
@@ -97,12 +93,6 @@
     background-color: rgba(239, 68, 68, 0.15);
     border-color: #ef4444;
     box-shadow: 0 0 0 1px #ef4444;
-}
-
-.filter-option[for="filter-finished"] input:checked + .filter-label {
-    background-color: rgba(139, 92, 246, 0.15);
-    border-color: #8b5cf6;
-    box-shadow: 0 0 0 1px #8b5cf6;
 }
 
 .filter-label i {

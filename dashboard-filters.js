@@ -6,14 +6,14 @@ let activeFilters = {
     pending: true,  // Em Andamento
     completed: true, // Concluído
     late: true,     // Atrasado
-    finished: true  // Finalizado
+    // Removido: finished: true  // Finalizado
 };
 
 // Constantes para cores dos status
 const STATUS_COLORS = {
     pending: '#fbbf24',    // Amarelo - Em Andamento (alterado de azul para amarelo)
     completed: '#22c55e',  // Verde - Concluído
-    finished: '#8b5cf6',   // Roxo - Finalizado
+    // Removido: finished: '#8b5cf6',   // Roxo - Finalizado
     late: '#ef4444'        // Vermelho - Atrasado
 };
 
@@ -21,7 +21,7 @@ const STATUS_COLORS = {
 const STATUS_ICONS = {
     pending: 'fa-spinner',
     completed: 'fa-check-circle',
-    finished: 'fa-flag-checkered',
+    // Removido: finished: 'fa-flag-checkered',
     late: 'fa-exclamation-circle'
 };
 
@@ -74,7 +74,7 @@ function createFilterUI() {
         { id: 'pending', label: 'Em Andamento', icon: 'fa-spinner', color: STATUS_COLORS.pending },
         { id: 'completed', label: 'Concluído', icon: 'fa-check-circle', color: STATUS_COLORS.completed },
         { id: 'late', label: 'Atrasado', icon: 'fa-exclamation-circle', color: STATUS_COLORS.late },
-        { id: 'finished', label: 'Finalizado', icon: 'fa-flag-checkered', color: STATUS_COLORS.finished }
+        // Removido: { id: 'finished', label: 'Finalizado', icon: 'fa-flag-checkered', color: STATUS_COLORS.finished }
     ];
     
     statusOptions.forEach(option => {
@@ -131,17 +131,10 @@ function createFilterUI() {
     
     filtersContainer.appendChild(buttonContainer);
     
-    // Inserir antes do conteúdo do dashboard
-    const statusFilter = dashboardView.querySelector('.status-filter');
-    if (statusFilter) {
-        // Se o filtro de status existente estiver presente, escondê-lo
-        statusFilter.style.display = 'none';
-    }
-    
-    // Inserir após o cabeçalho da view
-    const viewHeader = dashboardView.querySelector('.view-header');
-    if (viewHeader && viewHeader.nextElementSibling) {
-        dashboardView.insertBefore(filtersContainer, viewHeader.nextElementSibling);
+    // Inserir no início do dashboard
+    const firstChild = dashboardView.querySelector('.view-header');
+    if (firstChild) {
+        dashboardView.insertBefore(filtersContainer, firstChild.nextSibling);
     } else {
         dashboardView.appendChild(filtersContainer);
     }
@@ -179,7 +172,7 @@ function updateFilterStatus() {
             pending: 'Em Andamento',
             completed: 'Concluído',
             late: 'Atrasado',
-            finished: 'Finalizado'
+            // Removido: finished: 'Finalizado'
         };
         
         Object.keys(activeFilters).forEach(status => {
@@ -193,7 +186,7 @@ function updateFilterStatus() {
     }
 }
 
-// Configurar os ouvintes de eventos para os filtros
+// Configurar event listeners para os filtros
 function setupFilterListeners() {
     // Event listeners para checkboxes
     document.querySelectorAll('#dashboard-status-filters input[type="checkbox"]').forEach(checkbox => {
@@ -210,16 +203,6 @@ function setupFilterListeners() {
             // Também renderizar as tarefas usando a função global
             if (typeof window.renderTasks === 'function') {
                 window.renderTasks();
-            }
-            
-            // Criar animação visual de confirmação
-            const label = this.closest('.filter-option').querySelector('.filter-label');
-            if (label) {
-                const animClass = this.checked ? 'pulse-active' : 'pulse-inactive';
-                label.classList.add(animClass);
-                setTimeout(() => {
-                    label.classList.remove(animClass);
-                }, 500);
             }
         });
     });
@@ -287,77 +270,82 @@ function setupFilterListeners() {
             }, 300);
         });
     }
-}
-
-// Aplicar os filtros às tarefas
-function applyFilters() {
-    console.log('Aplicando filtros:', activeFilters);
     
-    // Verificar se há algum filtro ativo
-    const hasActiveFilter = Object.values(activeFilters).some(value => value);
-    
-    // Selecionar todas as tarefas no dashboard
-    const taskItems = document.querySelectorAll('.task-item');
-    
-    taskItems.forEach(taskItem => {
-        // Se nenhum filtro estiver ativo, mostrar todas as tarefas
-        if (!hasActiveFilter) {
-            taskItem.style.display = '';
-            return;
-        }
-        
-        // Obter o status da tarefa
-        const taskStatus = taskItem.dataset.status || 'pending';
-        
-        // Mostrar ou esconder com base no filtro
-        if (activeFilters[taskStatus]) {
-            // Adicionar animação para tornar visível
-            if (taskItem.style.display === 'none') {
-                taskItem.style.opacity = '0';
-                taskItem.style.display = '';
-                setTimeout(() => {
-                    taskItem.style.opacity = '1';
-                }, 50);
+    // Integrar com o filtro de rádio original
+    document.querySelectorAll('input[name="status-filter"]').forEach(radio => {
+        radio.addEventListener('change', function() {
+            if (this.checked) {
+                console.log('Radio selecionado:', this.value);
+                setFiltersFromRadio(this.value);
             }
-        } else {
-            // Adicionar animação para esconder
-            if (taskItem.style.display !== 'none') {
-                taskItem.style.opacity = '0';
-                setTimeout(() => {
-                    taskItem.style.display = 'none';
-                }, 200);
-            } else {
-                taskItem.style.display = 'none';
-            }
-        }
-    });
-    
-    // Atualizar contadores de tarefas nas colunas
-    updateTaskCounters();
-}
-
-// Atualizar os contadores de tarefas nas colunas
-function updateTaskCounters() {
-    document.querySelectorAll('.tasks-column').forEach(column => {
-        const columnId = column.id; // day, week, month, year
-        const taskCount = column.querySelector('.task-count');
-        const visibleTasks = column.querySelectorAll('.task-item:not([style*="display: none"])').length;
-        
-        if (taskCount) {
-            taskCount.textContent = `${visibleTasks} ${visibleTasks === 1 ? 'tarefa' : 'tarefas'}`;
-            
-            // Destacar os contadores com efeito visual
-            taskCount.classList.add('count-updated');
-            setTimeout(() => {
-                taskCount.classList.remove('count-updated');
-            }, 600);
-        }
+        });
     });
 }
 
-// Função para obter o estado atual dos filtros
+// Obter filtros ativos para uso externo
 function getActiveFilters() {
-    return activeFilters;
+    return { ...activeFilters };
+}
+
+// Função para aplicar os filtros nas tarefas
+function applyFilters() {
+    // Verificar se há algum filtro ativo
+    const anyFilterActive = Object.values(activeFilters).some(v => v);
+    if (!anyFilterActive) {
+        console.log('Nenhum filtro ativo, ocultando todas as tarefas');
+        hideAllTasks();
+        return;
+    }
+    
+    // Contar tarefas visíveis para cada categoria
+    const taskCountByCategory = {
+        day: 0,
+        week: 0,
+        month: 0,
+        year: 0
+    };
+    
+    // Para cada categoria, filtrar as tarefas
+    ['day', 'week', 'month', 'year'].forEach(category => {
+        const taskList = document.getElementById(category)?.querySelector('.task-list');
+        if (!taskList) return;
+        
+        const taskItems = taskList.querySelectorAll('.task-item');
+        taskItems.forEach(task => {
+            // Verificar o status da tarefa
+            const taskStatus = getTaskStatus(task);
+            
+            // Mostrar ou ocultar com base nos filtros
+            if (activeFilters[taskStatus]) {
+                task.style.display = '';
+                taskCountByCategory[category]++;
+            } else {
+                task.style.display = 'none';
+            }
+        });
+        
+        // Atualizar contadores
+        updateTaskCounter(category, taskCountByCategory[category]);
+        
+        // Mostrar ou ocultar mensagem de "nenhuma tarefa"
+        toggleEmptyMessage(category, taskCountByCategory[category]);
+    });
+    
+    console.log('Filtros aplicados:', activeFilters);
+}
+
+// Função para ocultar todas as tarefas
+function hideAllTasks() {
+    const allTasks = document.querySelectorAll('.task-item');
+    allTasks.forEach(task => {
+        task.style.display = 'none';
+    });
+    
+    // Atualizar contadores para zero
+    ['day', 'week', 'month', 'year'].forEach(category => {
+        updateTaskCounter(category, 0);
+        toggleEmptyMessage(category, 0);
+    });
 }
 
 // Função para converter a seleção de radio em filtros checkbox
@@ -367,25 +355,26 @@ function setFiltersFromRadio(radioValue) {
         'all': {
             pending: true,
             completed: true,
-            finished: true,
+            // Removido: finished: true,
             late: true
         },
         'pending': {
             pending: true,
             completed: false,
-            finished: false,
+            // Removido: finished: false,
             late: false
         },
         'completed': {
             pending: false,
             completed: true,
-            finished: true,
+            // Finalizado passa a não ser mais incluído no filtro de "Concluído"
+            // Removido: finished: true,
             late: false
         },
         'late': {
             pending: false,
             completed: false,
-            finished: false,
+            // Removido: finished: false,
             late: true
         }
     };
@@ -410,31 +399,42 @@ function setFiltersFromRadio(radioValue) {
     }
 }
 
-// Executar a inicialização quando o documento estiver carregado
-document.addEventListener('DOMContentLoaded', function() {
-    // Verificar se estamos na página do dashboard
-    if (document.getElementById('dashboard-view')) {
-        // Inicializar os filtros com um pequeno atraso para garantir que as tarefas já foram carregadas
-        setTimeout(initDashboardFilters, 300);
-    }
-});
+// Função para obter o status de uma tarefa
+function getTaskStatus(taskElement) {
+    if (taskElement.classList.contains('status-pending')) return 'pending';
+    if (taskElement.classList.contains('status-completed')) return 'completed';
+    if (taskElement.classList.contains('status-late')) return 'late';
+    // Removido: if (taskElement.classList.contains('status-finished')) return 'finished';
+    return 'pending'; // Padrão
+}
 
-// Configurar reinicialização em eventos de navegação para manter os filtros mesmo após mudanças de visualização
-window.addEventListener('hashchange', function() {
-    if (window.location.hash === '#dashboard' || window.location.hash === '') {
-        // Reinicializar os filtros quando voltar ao dashboard
-        setTimeout(function() {
-            // Verificar se já existe, senão inicializar
-            if (!document.getElementById('dashboard-status-filters')) {
-                initDashboardFilters();
-            } else {
-                // Apenas reaplicar os filtros se já existirem
-                updateFilterStatus();
-                applyFilters();
-            }
-        }, 300);
+// Função para atualizar o contador de tarefas
+function updateTaskCounter(category, count) {
+    const counterElement = document.getElementById(`${category}-count`);
+    if (counterElement) {
+        counterElement.textContent = `${count} tarefa${count !== 1 ? 's' : ''}`;
     }
-});
+}
+
+// Função para mostrar ou ocultar mensagem de "nenhuma tarefa"
+function toggleEmptyMessage(category, count) {
+    const taskList = document.getElementById(category)?.querySelector('.task-list');
+    if (!taskList) return;
+    
+    // Remover mensagem existente se houver
+    const existingMessage = taskList.querySelector('.empty-filter-message');
+    if (existingMessage) {
+        existingMessage.remove();
+    }
+    
+    // Se não houver tarefas, mostrar mensagem
+    if (count === 0) {
+        const emptyMessage = document.createElement('div');
+        emptyMessage.className = 'empty-filter-message';
+        emptyMessage.innerHTML = '<i class="fas fa-filter"></i><p>Nenhuma tarefa com os filtros selecionados</p>';
+        taskList.appendChild(emptyMessage);
+    }
+}
 
 // API pública para outros módulos
 window.dashboardFilters = {

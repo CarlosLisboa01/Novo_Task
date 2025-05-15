@@ -315,7 +315,6 @@ function performFilterByStatus(status) {
         'all': 'Todas as tarefas',
         'pending': 'Tarefas em andamento',
         'completed': 'Tarefas concluídas',
-        'finished': 'Tarefas finalizadas', 
         'late': 'Tarefas atrasadas'
     };
     
@@ -4050,25 +4049,21 @@ window.dashboardFilters.setFiltersFromRadio = function(radioValue) {
         'all': {
             pending: true,
             completed: true,
-            finished: true,
             late: true
         },
         'pending': {
             pending: true,
             completed: false,
-            finished: false,
             late: false
         },
         'completed': {
             pending: false,
             completed: true,
-            finished: true,
             late: false
         },
         'late': {
             pending: false,
             completed: false,
-            finished: false,
             late: true
         }
     };

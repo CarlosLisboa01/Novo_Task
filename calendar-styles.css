@@ -35,6 +35,13 @@ body.dark {
     will-change: transform, box-shadow;
 }
 
+/* Estilo para a célula expandida */
+.calendar-cell.expanded-cell {
+    z-index: 100;
+    transform: scale(1.02);
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+}
+
 .calendar-tasks-container {
     flex: 1;
     overflow-y: auto;
@@ -45,6 +52,12 @@ body.dark {
     max-height: 150px;
     scrollbar-width: thin;
     scrollbar-color: var(--calendar-shadow) transparent;
+    transition: max-height 0.3s ease;
+}
+
+/* Tamanho expandido para o container quando expandido */
+.expanded-cell .calendar-tasks-container {
+    max-height: 300px;
 }
 
 /* Otimização de scrollbar */
@@ -98,4 +111,47 @@ body.dark {
 .view-all-tasks-btn i {
     font-size: 0.7rem;
     margin-right: 6px;
+}
+
+/* Estilo para o botão "mais" */
+.view-more-tasks {
+    width: 100%;
+    padding: 4px 8px;
+    margin-top: 4px;
+    border: none;
+    background-color: var(--calendar-primary);
+    color: white;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+    text-align: center;
+    box-shadow: 0 2px 4px var(--calendar-shadow);
+}
+
+.view-more-tasks:hover {
+    background-color: var(--calendar-secondary);
+}
+
+/* Estilo para o botão de minimizar */
+.close-expanded-view {
+    width: 100%;
+    padding: 4px 8px;
+    margin-top: 8px;
+    border: none;
+    background-color: #6c757d;
+    color: white;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+    text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+}
+
+.close-expanded-view:hover {
+    background-color: #5a6268;
 } 
