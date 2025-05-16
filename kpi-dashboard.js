@@ -194,17 +194,8 @@ function createKPICardsHTML(kpiData) {
         `;
     });
     
-    // Gráfico de pizza (opcional)
-    html += `
-        <div class="kpi-chart-card">
-            <div class="kpi-chart-header">
-                <h4>Distribuição de Tarefas</h4>
-            </div>
-            <div class="kpi-chart-body">
-                <canvas id="kpi-distribution-chart"></canvas>
-            </div>
-        </div>
-    `;
+    // Gráfico de pizza (removido)
+    // Não exibir mais o gráfico de pizza de distribuição de tarefas
     
     // Fechar container
     html += `
@@ -214,69 +205,11 @@ function createKPICardsHTML(kpiData) {
     return html;
 }
 
-// Função para renderizar o gráfico de distribuição
+// Função para renderizar o gráfico de distribuição (mantida por compatibilidade, mas não faz nada)
 function renderKPIChart(kpiData) {
-    const ctx = document.getElementById('kpi-distribution-chart');
-    if (!ctx) return null;
-    
-    // Destruir gráfico existente se houver
-    if (window.kpiDistributionChart) {
-        window.kpiDistributionChart.destroy();
-    }
-    
-    // Dados e cores para o gráfico
-    const data = [
-        kpiData.concluidas,
-        kpiData.andamento,
-        kpiData.atrasadas
-    ];
-    
-    const backgroundColor = [
-        '#22c55e', // Verde
-        '#eab308', // Amarelo
-        '#ef4444'  // Vermelho
-    ];
-    
-    // Configurar e criar o gráfico
-    window.kpiDistributionChart = new Chart(ctx, {
-        type: 'doughnut',
-        data: {
-            labels: ['Concluídas', 'Em Andamento', 'Atrasadas'],
-            datasets: [{
-                data: data,
-                backgroundColor: backgroundColor,
-                borderColor: 'white',
-                borderWidth: 2
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            cutout: '70%',
-            plugins: {
-                legend: {
-                    position: 'bottom',
-                    labels: {
-                        usePointStyle: true,
-                        padding: 15
-                    }
-                },
-                tooltip: {
-                    callbacks: {
-                        label: function(context) {
-                            const label = context.label || '';
-                            const value = context.raw;
-                            const total = data.reduce((a, b) => a + b, 0) || 1; // Evitar divisão por zero
-                            const percentage = Math.round((value / total) * 100);
-                            return `${label}: ${value} (${percentage}%)`;
-                        }
-                    }
-                }
-            }
-        }
-    });
-    
-    return window.kpiDistributionChart;
+    // Esta função foi desativada para remover o gráfico de pizza
+    console.log('Gráfico de distribuição de tarefas foi desativado');
+    return null;
 }
 
 // Função principal para inicializar e renderizar KPIs
@@ -322,8 +255,8 @@ async function initKPIDashboard() {
         // Substituir mensagem de carregamento pelos KPIs
         loadingEl.outerHTML = kpiHTML;
         
-        // Renderizar gráfico de distribuição
-        renderKPIChart(kpiData);
+        // O gráfico de distribuição foi removido
+        // Não há mais chamada para renderKPIChart
         
         console.log('KPI Dashboard inicializado com sucesso');
         return true;
@@ -418,84 +351,81 @@ function addKPIUpdateStyles() {
 // Função para atualizar os KPIs
 async function updateKPIDashboard(forceRefresh = false) {
     try {
-        console.log(`Atualizando KPI Dashboard... ${forceRefresh ? '(forçando atualização)' : ''}`);
+        console.log('Atualizando KPI Dashboard...');
         
-        // Garantir que os estilos de atualização estejam aplicados
-        addKPIUpdateStyles();
+        // Verificar se o dashboard está visível
+        const dashboardView = document.getElementById('dashboard-view');
+        if (!dashboardView || dashboardView.style.display === 'none') {
+            console.log('Dashboard não está visível, atualizações serão adiadas');
+            return false;
+        }
         
-        // Criar um timestamp para registrar o tempo de execução
-        const startTime = performance.now();
+        // Buscar dados atualizados
+        const kpiData = await fetchKPIData(forceRefresh);
         
-        // Usar promessas para buscar dados e atualizar elementos simultaneamente
-        // para evitar bloqueio, passando o parâmetro forceRefresh
-        const kpiDataPromise = fetchKPIData(forceRefresh);
+        // Atualizar valores dos KPIs
+        updateKPIValues(kpiData);
         
-        // Enquanto os dados estão sendo buscados, preparar elementos que serão atualizados
-        const kpiElements = {};
-        Object.keys(KPI_CONFIG).forEach(key => {
-            kpiElements[key] = document.querySelector(`.kpi-card[data-kpi="${key}"] .kpi-value`);
-        });
+        // Não há mais gráfico de distribuição para atualizar
         
-        // Indicar visualmente que estamos atualizando
-        Object.values(kpiElements).forEach(element => {
-            if (element) {
-                // Adicionar classe de atualização (criará um efeito de pulse ou highlight)
-                element.classList.add('kpi-updating');
-                
-                // Adicionar ícone temporário de refresh
-                const refreshIcon = document.createElement('small');
-                refreshIcon.className = 'kpi-refresh-indicator';
-                refreshIcon.innerHTML = '<i class="fas fa-sync-alt fa-spin"></i>';
-                // Só adicionar se ainda não existir
-                if (!element.querySelector('.kpi-refresh-indicator')) {
-                    element.appendChild(refreshIcon);
-                }
-            }
-        });
-        
-        // Aguardar os dados
-        const kpiData = await kpiDataPromise;
-        
-        // Atualizar valores nos cards existentes
-        Object.keys(KPI_CONFIG).forEach(key => {
-            const element = kpiElements[key];
-            if (element) {
-                // Substituir o conteúdo com o novo valor
-                const value = kpiData[key] || 0;
-                
-                // Remover o ícone de refresh
-                const refreshIcon = element.querySelector('.kpi-refresh-indicator');
-                if (refreshIcon) refreshIcon.remove();
-                
-                // Atualizar o valor com um efeito de contador (para valores maiores)
-                if (value > 0) {
-                    // Animação de contagem para valores > 0
-                    const currentValue = parseInt(element.textContent) || 0;
-                    animateCounterValue(element, currentValue, value);
-                } else {
-                    // Para zero, apenas definir diretamente
-                    element.textContent = value;
-                }
-                
-                // Remover classe de atualização após um pequeno delay
-                setTimeout(() => {
-                    element.classList.remove('kpi-updating');
-                }, 300);
-            }
-        });
-        
-        // Atualizar gráfico de distribuição
-        renderKPIChart(kpiData);
-        
-        // Mostrar tempo de execução para diagnóstico
-        const endTime = performance.now();
-        console.log(`KPI Dashboard atualizado em ${(endTime - startTime).toFixed(2)}ms`);
-        
+        console.log('KPI Dashboard atualizado com sucesso');
         return true;
     } catch (error) {
         console.error('Erro ao atualizar KPI Dashboard:', error);
         return false;
     }
+}
+
+// Função para atualizar valores dos KPIs (extraída para melhor manutenção)
+function updateKPIValues(kpiData) {
+    // Atualizar os valores atuais com animação
+    const totalTasks = document.getElementById('kpi-total-tasks');
+    if (totalTasks) {
+        const currentValue = parseInt(totalTasks.textContent);
+        animateCounterValue(totalTasks, currentValue, kpiData.total);
+        totalTasks.parentElement.classList.add('kpi-updating');
+        setTimeout(() => {
+            totalTasks.parentElement.classList.remove('kpi-updating');
+        }, 500);
+    }
+    
+    const pendingTasks = document.getElementById('kpi-andamento-tasks');
+    if (pendingTasks) {
+        const currentValue = parseInt(pendingTasks.textContent);
+        animateCounterValue(pendingTasks, currentValue, kpiData.andamento);
+        pendingTasks.parentElement.classList.add('kpi-updating');
+        setTimeout(() => {
+            pendingTasks.parentElement.classList.remove('kpi-updating');
+        }, 500);
+    }
+    
+    const completedTasks = document.getElementById('kpi-concluidas-tasks');
+    if (completedTasks) {
+        const currentValue = parseInt(completedTasks.textContent);
+        animateCounterValue(completedTasks, currentValue, kpiData.concluidas);
+        completedTasks.parentElement.classList.add('kpi-updating');
+        setTimeout(() => {
+            completedTasks.parentElement.classList.remove('kpi-updating');
+        }, 500);
+    }
+    
+    const lateTasks = document.getElementById('kpi-atrasadas-tasks');
+    if (lateTasks) {
+        const currentValue = parseInt(lateTasks.textContent);
+        animateCounterValue(lateTasks, currentValue, kpiData.atrasadas);
+        lateTasks.parentElement.classList.add('kpi-updating');
+        setTimeout(() => {
+            lateTasks.parentElement.classList.remove('kpi-updating');
+        }, 500);
+    }
+    
+    // Atualizar data e hora da última atualização
+    const now = new Date();
+    const timeString = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    
+    document.querySelectorAll('.kpi-refresh-time').forEach(el => {
+        el.textContent = timeString;
+    });
 }
 
 // Função auxiliar para animar contador
@@ -948,4 +878,12 @@ document.addEventListener('DOMContentLoaded', function() {
             updateAnalytics();
         });
     });
+});
+
+// Listener global para atualização instantânea dos KPIs ao mudar status de tarefa
+window.addEventListener('taskStatusChanged', function(event) {
+    console.log('[KPI] Evento taskStatusChanged recebido:', event.detail);
+    if (typeof updateKPIDashboard === 'function') {
+        updateKPIDashboard(true);
+    }
 }); 

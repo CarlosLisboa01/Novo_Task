@@ -47,21 +47,22 @@ const GlobalSync = {
     },
     
     // Realizar sincronização
-    syncNow: async function() {
+    syncNow: async function(forceRefresh = false) {
         try {
             const now = Date.now();
             
-            if (now - this.lastUpdate < this.updateInterval) {
+            // Se não for forçado, respeitar o intervalo mínimo entre sincronizações
+            if (!forceRefresh && (now - this.lastUpdate < this.updateInterval)) {
                 return;
             }
             
-            console.log('[GlobalSync] Iniciando sincronização com servidor');
+            console.log(`[GlobalSync] Iniciando sincronização com servidor (forçada: ${forceRefresh})`);
             
             if (!navigator.onLine) {
                 throw new Error('Sem conexão com a internet');
             }
             
-            const updatedTasks = await window.supabaseApi.fetchTasks();
+            const updatedTasks = await window.supabaseApi.fetchTasks(forceRefresh);
             
             if (!updatedTasks) {
                 throw new Error('Não foi possível obter dados do servidor');

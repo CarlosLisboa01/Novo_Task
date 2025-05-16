@@ -287,9 +287,9 @@ async function directFetch(endpoint, options = {}) {
 }
 
 // Função para buscar todas as tarefas do usuário com fallback
-async function fetchTasks() {
+async function fetchTasks(forceRefresh = false) {
     try {
-        console.log('Iniciando fetchTasks() - Tentando buscar todas as tarefas...');
+        console.log(`Iniciando fetchTasks(forceRefresh: ${forceRefresh}) - Tentando buscar todas as tarefas...`);
         
         // Verificar se o usuário está autenticado
         if (!await isAuthenticated()) {
@@ -302,9 +302,17 @@ async function fetchTasks() {
             };
         }
         
+        // Verificar cache primeiro se não for solicitada atualização forçada
+        if (!forceRefresh && window.cachedTasks && (new Date().getTime() - window.lastTaskFetch < 1000)) {
+            console.log('Usando cache de tarefas (menos de 1 segundo desde última atualização)');
+            return window.cachedTasks;
+        }
+        
         // Tentar usar o cliente Supabase primeiro
         let result;
         try {
+            // Adicionar timestamp para evitar cache do navegador
+            const cacheParam = forceRefresh ? `?cache=${new Date().getTime()}` : '';
             result = await supabase
                 .from('tasks')
                 .select('*')
@@ -318,7 +326,9 @@ async function fetchTasks() {
         } catch (supabaseError) {
             console.warn('Falha no cliente Supabase, tentando requisição direta...');
             // Tentar requisição direta como fallback
-            result = await directFetch(`tasks?user_id=eq.${currentUser.id}&order=pinned.desc`);
+            // Adicionar timestamp para evitar cache do navegador
+            const cacheParam = forceRefresh ? `&cache=${new Date().getTime()}` : '';
+            result = await directFetch(`tasks?user_id=eq.${currentUser.id}&order=pinned.desc${cacheParam}`);
             
             if (result.error) {
                 console.error('Erro também na requisição direta:', result.error);
@@ -362,6 +372,10 @@ async function fetchTasks() {
         } else {
             console.warn('Nenhuma tarefa encontrada no servidor');
         }
+        
+        // Armazenar em cache
+        window.cachedTasks = organizedTasks;
+        window.lastTaskFetch = new Date().getTime();
         
         // Contar tarefas por categoria
         Object.keys(organizedTasks).forEach(category => {

@@ -611,70 +611,99 @@
                     </div>
                     
                     <div class="analytics-dashboard">
+                        <!-- Indicadores principais (KPIs) -->
                         <div class="kpi-cards">
                             <div class="kpi-card">
                                 <div class="kpi-icon">
+                                    <i class="fas fa-tasks"></i>
+                                </div>
+                                <div class="kpi-content">
+                                    <h3>Total de Tarefas</h3>
+                                    <div class="kpi-value" id="kpi-total-tasks">0</div>
+                                </div>
+                            </div>
+                            
+                            <div class="kpi-card">
+                                <div class="kpi-icon success">
                                     <i class="fas fa-check-circle"></i>
                                 </div>
                                 <div class="kpi-content">
                                     <h3>Tarefas Concluídas</h3>
-                                    <div class="kpi-value" id="completed-tasks-count">0</div>
+                                    <div class="kpi-value" id="kpi-concluidas-tasks">0</div>
                                 </div>
                             </div>
+                            
                             <div class="kpi-card">
-                                <div class="kpi-icon">
-                                    <i class="fas fa-hourglass-half"></i>
+                                <div class="kpi-icon warning">
+                                    <i class="fas fa-clock"></i>
                                 </div>
                                 <div class="kpi-content">
                                     <h3>Em Andamento</h3>
-                                    <div class="kpi-value" id="pending-tasks-count">0</div>
+                                    <div class="kpi-value" id="kpi-andamento-tasks">0</div>
                                 </div>
                             </div>
+                            
                             <div class="kpi-card">
-                                <div class="kpi-icon warning">
+                                <div class="kpi-icon danger">
                                     <i class="fas fa-exclamation-triangle"></i>
                                 </div>
                                 <div class="kpi-content">
                                     <h3>Tarefas Atrasadas</h3>
-                                    <div class="kpi-value" id="late-tasks-count">0</div>
+                                    <div class="kpi-value" id="kpi-atrasadas-tasks">0</div>
                                 </div>
                             </div>
+                            
                             <div class="kpi-card">
-                                <div class="kpi-icon success">
+                                <div class="kpi-icon info">
                                     <i class="fas fa-percentage"></i>
                                 </div>
                                 <div class="kpi-content">
                                     <h3>Taxa de Conclusão</h3>
-                                    <div class="kpi-value" id="completion-rate">0%</div>
-                                </div>
-                    </div>
-                </div>
-                
-                        <div class="charts-container">
-                            <div class="chart-card">
-                                <h3>Progresso por Categoria</h3>
-                                <div class="chart-container">
-                                    <canvas id="tasks-by-category-chart"></canvas>
+                                    <div class="kpi-value" id="kpi-conclusao-rate">0%</div>
                                 </div>
                             </div>
-                            <div class="chart-card">
-                                <h3>Tendência de Conclusão</h3>
-                                <div class="chart-container">
-                                    <canvas id="task-completion-trend-chart"></canvas>
+                            
+                            <div class="kpi-card">
+                                <div class="kpi-icon primary">
+                                    <i class="fas fa-hourglass-half"></i>
+                                </div>
+                                <div class="kpi-content">
+                                    <h3>Tempo Médio</h3>
+                                    <div class="kpi-value" id="kpi-tempo-medio">0h</div>
                                 </div>
                             </div>
-                            <div class="chart-card">
-                                <h3>Distribuição de Status</h3>
-                                <div class="chart-container">
-                                    <canvas id="task-status-chart"></canvas>
-                    </div>
-                </div>
-                            <div class="chart-card">
-                                <h3>Produtividade Diária</h3>
-                                <div class="chart-container">
-                                    <canvas id="daily-productivity-chart"></canvas>
+                            
+                            <div class="kpi-card">
+                                <div class="kpi-icon secondary">
+                                    <i class="fas fa-chart-pie"></i>
+                                </div>
+                                <div class="kpi-content">
+                                    <h3>% Atrasadas</h3>
+                                    <div class="kpi-value" id="kpi-atrasadas-percent">0%</div>
                                 </div>
                             </div>
+                        </div>
+                        
+                        <!-- Gráficos -->
+                        <div class="analytics-charts">
+                            <div class="chart-card">
+                                <h3>Distribuição por Status</h3>
+                                <div class="chart-container">
+                                    <canvas id="status-distribution-chart"></canvas>
+                                </div>
+                            </div>
+                            
+                            <div class="chart-card">
+                                <h3 class="chart-title">Tarefas por Dia</h3>
+                                <div class="chart-container">
+                                    <canvas id="completion-trend-chart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Última atualização -->
+                        <div class="last-update">
+                            <i class="fas fa-sync-alt"></i> Atualizado às <span id="last-update-time">--:--</span>
                         </div>
                     </div>
                 </div>
@@ -686,6 +715,7 @@
     <div class="toast-container"></div>
     
     <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
     <script src="supabase-config.js"></script>
     <script src="task-sync.js"></script>
     <script src="task-handler.js"></script>
@@ -694,5 +724,45 @@
     <script src="kpi-dashboard.js"></script>
     <script src="analytics.js"></script>
     <script src="dashboard-filters.js"></script>
+    <script>
+    // Atualização instantânea dos KPIs ao mudar status de tarefa
+    window.addEventListener('taskStatusChanged', function(event) {
+        const detail = event.detail;
+        if (!detail) return;
+
+        // Referências aos elementos dos KPIs
+        const concluidasEl = document.getElementById('kpi-concluidas-tasks');
+        const andamentoEl = document.getElementById('kpi-andamento-tasks');
+        const atrasadasEl = document.getElementById('kpi-atrasadas-tasks');
+        if (!concluidasEl || !andamentoEl || !atrasadasEl) return;
+
+        // Ler valores atuais
+        let concluidas = parseInt(concluidasEl.textContent) || 0;
+        let andamento = parseInt(andamentoEl.textContent) || 0;
+        let atrasadas = parseInt(atrasadasEl.textContent) || 0;
+
+        // Atualizar contadores conforme mudança de status
+        if (detail.oldStatus === 'completed' || detail.oldStatus === 'finished') concluidas = Math.max(0, concluidas - 1);
+        if (detail.oldStatus === 'pending') andamento = Math.max(0, andamento - 1);
+        if (detail.oldStatus === 'late') atrasadas = Math.max(0, atrasadas - 1);
+
+        if (detail.newStatus === 'completed' || detail.newStatus === 'finished') concluidas++;
+        if (detail.newStatus === 'pending') andamento++;
+        if (detail.newStatus === 'late') atrasadas++;
+
+        // Atualizar DOM
+        concluidasEl.textContent = concluidas;
+        andamentoEl.textContent = andamento;
+        atrasadasEl.textContent = atrasadas;
+
+        // Efeito visual
+        [concluidasEl, andamentoEl, atrasadasEl].forEach(el => {
+            if (el && el.parentElement) {
+                el.parentElement.classList.add('kpi-updating');
+                setTimeout(() => el.parentElement.classList.remove('kpi-updating'), 300);
+            }
+        });
+    });
+    </script>
 </body>
 </html> 

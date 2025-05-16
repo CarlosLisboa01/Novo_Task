@@ -676,6 +676,27 @@ async function handleAddTaskEvent(event) {
             showErrorNotification('Erro ao salvar tarefas localmente');
         }
         
+        // Disparar evento de tarefa adicionada para atualizar análises
+        try {
+            console.log('Disparando evento taskAdded para atualizar análises...');
+            const taskAddedEvent = new CustomEvent('taskAdded', {
+                detail: {
+                    taskId: newTask.id,
+                    task: newTask
+                },
+                bubbles: true,
+                cancelable: false
+            });
+            window.dispatchEvent(taskAddedEvent);
+            
+            // Também disparar evento taskUpdated para compatibilidade
+            window.dispatchEvent(new CustomEvent('taskUpdated', {
+                detail: { tasks: window.tasks }
+            }));
+        } catch (eventError) {
+            console.error('Erro ao disparar evento de adição de tarefa:', eventError);
+        }
+        
         // Adicionar à fila de sincronização com o servidor (se disponível)
         if (window.taskSyncApi && typeof window.taskSyncApi.addTask === 'function') {
             console.log('Enviando tarefa para sincronização com o servidor');
@@ -697,6 +718,12 @@ async function handleAddTaskEvent(event) {
                             console.log('Tarefa salva com sucesso no servidor (fallback)');
                             if (typeof window.showSuccessNotification === 'function') {
                                 window.showSuccessNotification('Tarefa salva com sucesso no servidor!');
+                            }
+                            
+                            // Atualizar análises após salvar no servidor
+                            if (typeof window.updateAnalytics === 'function') {
+                                console.log('Atualizando análises após salvar no servidor...');
+                                window.updateAnalytics();
                             }
                         } else {
                             console.error('Falha ao salvar tarefa no servidor (fallback)');
@@ -721,6 +748,17 @@ async function handleAddTaskEvent(event) {
             window.updateTaskCounts();
         }
         
+        // Atualizar KPIs e análises
+        if (typeof window.updateKPIDashboard === 'function') {
+            console.log('Atualizando KPI Dashboard...');
+            window.updateKPIDashboard(true);
+        }
+        
+        if (typeof window.updateAnalytics === 'function') {
+            console.log('Atualizando Análises...');
+            window.updateAnalytics();
+        }
+        
         // Mostrar notificação de sucesso
         if (typeof window.showSuccessNotification === 'function') {
             window.showSuccessNotification('Tarefa adicionada com sucesso!');
@@ -742,10 +780,6 @@ async function handleAddTaskEvent(event) {
         if (typeof window.renderTasks === 'function') {
             console.log('Renderizando tarefas na interface');
             window.renderTasks();
-        } else {
-            console.error('Função renderTasks não encontrada. A interface não será atualizada.');
-            // Tentar recarregar a página como último recurso
-            window.location.reload();
         }
         
         // Atualizar o calendário, se estiver inicializado
